@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Daily picker: one card per mode (Easy = default preset, Hard = last
+     top-level preset). Each card shows the preset title above its buttons,
+     its streak, today's status, and Attempt / Practice buttons. A bottom
+     row holds About, Stats, then Cancel pinned right. The content scrolls
+     when the dialog is taller than the screen (landscape), so the Hard
+     card and the bottom row stay reachable. -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+	android:layout_width="match_parent"
+	android:layout_height="wrap_content">
+
+	<LinearLayout
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:orientation="vertical"
+		android:padding="24dp">
+
+	<TextView
+		android:id="@+id/dailyTitle"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:textSize="20sp"
+		android:textStyle="bold" />
+
+	<LinearLayout
+		android:id="@+id/dailyEasyGroup"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginTop="16dp"
+		android:orientation="vertical">
+
+		<TextView
+			android:id="@+id/dailyEasyMode"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:textSize="18sp"
+			android:textStyle="bold" />
+
+		<TextView
+			android:id="@+id/dailyEasyPreset"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:textSize="16sp" />
+
+		<TextView
+			android:id="@+id/dailyEasyStreak"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:textSize="14sp" />
+
+		<TextView
+			android:id="@+id/dailyEasyStatus"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:textSize="14sp" />
+
+		<LinearLayout
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="8dp"
+			android:orientation="horizontal">
+
+			<Button
+				android:id="@+id/dailyEasyAttempt"
+				android:layout_width="0dp"
+				android:layout_height="wrap_content"
+				android:layout_weight="1" />
+
+			<Button
+				android:id="@+id/dailyEasyPractice"
+				android:layout_width="0dp"
+				android:layout_height="wrap_content"
+				android:layout_weight="1" />
+		</LinearLayout>
+	</LinearLayout>
+
+	<View
+		android:id="@+id/dailyDivider"
+		android:layout_width="match_parent"
+		android:layout_height="1dp"
+		android:layout_marginTop="16dp"
+		android:background="?android:attr/listDivider" />
+
+	<LinearLayout
+		android:id="@+id/dailyHardGroup"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginTop="16dp"
+		android:orientation="vertical">
+
+		<TextView
+			android:id="@+id/dailyHardMode"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:textSize="18sp"
+			android:textStyle="bold" />
+
+		<TextView
+			android:id="@+id/dailyHardPreset"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:textSize="16sp" />
+
+		<TextView
+			android:id="@+id/dailyHardStreak"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:textSize="14sp" />
+
+		<TextView
+			android:id="@+id/dailyHardStatus"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:textSize="14sp" />
+
+		<LinearLayout
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="8dp"
+			android:orientation="horizontal">
+
+			<Button
+				android:id="@+id/dailyHardAttempt"
+				android:layout_width="0dp"
+				android:layout_height="wrap_content"
+				android:layout_weight="1" />
+
+			<Button
+				android:id="@+id/dailyHardPractice"
+				android:layout_width="0dp"
+				android:layout_height="wrap_content"
+				android:layout_weight="1" />
+		</LinearLayout>
+	</LinearLayout>
+
+	<!-- Bottom row: About, Stats, then Cancel pinned right. Custom buttons
+	     (not dialog buttons) so the order is exact. -->
+	<LinearLayout
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginTop="16dp"
+		android:orientation="horizontal">
+
+		<Button
+			android:id="@+id/dailyAboutButton"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:minWidth="0dp"
+			android:text="@string/daily_about_button" />
+
+		<Button
+			android:id="@+id/dailyStatsButton"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:minWidth="0dp"
+			android:text="@string/stats" />
+
+		<Space
+			android:layout_width="0dp"
+			android:layout_height="wrap_content"
+			android:layout_weight="1" />
+
+		<Button
+			android:id="@+id/dailyCancelButton"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:minWidth="0dp"
+			android:text="@android:string/cancel" />
+	</LinearLayout>
+	</LinearLayout>
+</ScrollView>

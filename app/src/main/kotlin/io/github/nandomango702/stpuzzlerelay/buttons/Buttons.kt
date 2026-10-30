@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.util.AttributeSet
 import android.util.Log
+import android.util.TypedValue
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
@@ -55,6 +56,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
@@ -255,7 +257,7 @@ private fun Buttons(
         val totalHeight = if (isLandscape) maxHeight else largerHeight + spaceAfterKeys
 
         Box(modifier = Modifier
-            .background(colorResource(id = R.color.keyboard_background))
+            .background(themeColor(R.attr.keyboardBackground))
             .width(totalWidth)
             .height(totalHeight)) {
 
@@ -752,6 +754,14 @@ fun Modifier.autoRepeat(
     }
 }
 
+/** Resolves a colour from the activity theme, so theme overlays (e.g. AMOLED) restyle Compose UI too. */
+@Composable
+private fun themeColor(attr: Int): Color {
+    val typedValue = TypedValue()
+    LocalContext.current.theme.resolveAttribute(attr, typedValue, true)
+    return Color(typedValue.data)
+}
+
 @Composable
 private fun KeyButton(
     c: Int,
@@ -766,14 +776,15 @@ private fun KeyButton(
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable (RowScope.() -> Unit),
 ) {
-    val background =
-        if (on.value) R.color.key_background_on
-        else if (borders.value) R.color.key_background_border
-        else R.color.keyboard_background
+    val keyboardBackground = themeColor(R.attr.keyboardBackground)
+    val backgroundColor =
+        if (on.value) colorResource(R.color.key_background_on)
+        else if (borders.value) colorResource(R.color.key_background_border)
+        else keyboardBackground
     val buttonColors = ButtonDefaults.buttonColors(
-        colorResource(background),
+        backgroundColor,
         colorResource(R.color.keyboard_foreground),
-        colorResource(background),
+        backgroundColor,
         colorResource(R.color.keyboard_foreground_disabled)
     )
     CompositionLocalProvider {
@@ -797,7 +808,7 @@ private fun KeyButton(
                 }
                 .border(
                     if (borders.value) 1.dp else 0.dp,
-                    colorResource(id = R.color.keyboard_background)
+                    keyboardBackground
                 )
                 // applied even if not repeatable, for consistency of acting on press not release
                 .autoRepeat(

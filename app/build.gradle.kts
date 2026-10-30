@@ -1,19 +1,10 @@
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Properties
-import java.util.TimeZone
 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     `generate-backendname-objects`
-}
-
-fun timestamp(time: Boolean): String {
-    val dateFormat = SimpleDateFormat(if (time) "HHmm" else "yyyy-MM-dd")
-    dateFormat.timeZone = TimeZone.getTimeZone("UTC")
-    return dateFormat.format(Date())
 }
 
 fun gitCommand(vararg args: String): String {
@@ -49,8 +40,8 @@ android {
         applicationId = "io.github.nandomango702.stpuzzlerelay"
         minSdk = 21
         targetSdk = 36
-        versionCode = 150
-        versionName = timestamp(false)
+        versionCode = 151
+        versionName = "0.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resValue("string", "issues_url", issuesURL())
@@ -74,9 +65,10 @@ android {
         checkReleaseBuilds = false
     }
 
-    // Personal release key (CN=NandoMango702). keystore.properties is
-    // gitignored and lives next to this file; without it the release
-    // build type falls back to the debug key.
+    // Personal release key (cert CN=NandoMango702, baked in at creation).
+    // keystore.properties is gitignored and lives next to this file;
+    // without it the release build type gets NO signing config and
+    // assembles unsigned.
     val keystorePropsFile = rootProject.file("keystore.properties")
     val keystoreProps = Properties()
     if (keystorePropsFile.exists()) {
@@ -84,6 +76,19 @@ android {
     }
 
     signingConfigs {
+        // Pinned debug key: debug.keystore sits in the project root on the
+        // build machine's persistent storage and is gitignored ON PURPOSE
+        // (never committed). The AGP default debug keystore lives outside
+        // persistent storage and is regenerated whenever the environment
+        // restarts, which breaks update installs — hence the pin. Clean
+        // checkouts don't have the file and fall back to the default
+        // debug key (see buildTypes.debug below).
+        create("persistentDebug") {
+            storeFile = rootProject.file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         create("release") {
             storeFile = rootProject.file(keystoreProps.getProperty("storeFile", "release.keystore"))
             storePassword = keystoreProps.getProperty("storePassword")
@@ -96,6 +101,11 @@ android {
 
     buildTypes {
         debug {
+            signingConfig = if (rootProject.file("debug.keystore").exists()) {
+                signingConfigs.getByName("persistentDebug")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             versionNameSuffix = "-DEBUG-${idForSimon()}"
             ndk {
                 isDebuggable = true
@@ -106,7 +116,6 @@ android {
             if (keystorePropsFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            versionNameSuffix = "-${timestamp(true)}-${idForSimon()}"
             isMinifyEnabled = true
             ndk {
                 isDebuggable = false

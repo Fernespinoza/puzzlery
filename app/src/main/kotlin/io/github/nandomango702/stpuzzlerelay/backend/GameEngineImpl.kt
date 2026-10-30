@@ -127,6 +127,14 @@ class GameEngineImpl @UsedByJNI private constructor(
         @JvmStatic
         external fun getDefaultParams(backend: BackendName?): String
 
+        /**
+         * The backend's preset menu without starting a game (used by the
+         * daily picker). Static JNI: builds a headless midend, reads the
+         * game's static preset menu, and frees it — no puzzle is generated.
+         */
+        @JvmStatic
+        external fun getPresetsForBackend(backend: BackendName?): Array<MenuEntry>
+
         @JvmStatic
         fun forPreferencesOnly(backendName: BackendName, context: Context): GameEngine =
             forPreferencesOnly(backendName, getPrefs(context, backendName))

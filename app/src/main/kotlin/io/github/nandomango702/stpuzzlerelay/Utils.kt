@@ -33,9 +33,25 @@ var TextView.intValue: Int?
 object Utils {
     @JvmStatic
     @Throws(IOException::class)
-    fun readAllOf(s: InputStream?): String {
+    fun readAllOf(s: InputStream?, maxBytes: Long = Long.MAX_VALUE): String {
         requireNotNull(s)
-        return s.bufferedReader().use { it.readText() }
+        // Read with a cap: when a stream's size couldn't be checked up
+        // front (external content), an unbounded readText() could stream
+        // a huge file into the heap and OOM. Callers pass their limit;
+        // exceeding it surfaces as an IOException they already handle.
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        var total = 0L
+        s.use { input ->
+            while (true) {
+                val n = input.read(buffer)
+                if (n < 0) break
+                total += n
+                if (total > maxBytes) throw IOException("File too big")
+                out.write(buffer, 0, n)
+            }
+        }
+        return out.toString(Charsets.UTF_8.name())
     }
 
     @JvmStatic

@@ -1,10 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="NoActionBar" parent="@style/Theme.AppCompat.NoActionBar">
+    <style name="NoActionBar" parent="@style/Theme.AppCompat.DayNight.NoActionBar">
+        <item name="chooserSectionBackground">@color/chooser_section_background</item>
+        <item name="keyboardBackground">@color/keyboard_background</item>
+        <!-- Day-only base colours; values-night/styles.xml restates this style
+             without them so night keeps AppCompat's dark defaults. -->
+        <item name="android:windowBackground">@color/day_base_background</item>
+        <item name="android:textColorPrimary">@color/day_text_primary</item>
+        <item name="android:textColorSecondary">@color/day_text_secondary</item>
     </style>
     <style name="NoActionBar.Gameplay" parent="NoActionBar">
         <item name="android:windowBackground">@color/game_background</item>
         <item name="android:windowContentOverlay">@drawable/ab_shadow</item>
+    </style>
+    <!-- Applied at runtime over the activity theme when the AMOLED (true black)
+         setting is on and night mode is in effect. See NightModeHelper. -->
+    <style name="AmoledOverlay">
+        <item name="android:windowBackground">@color/amoled_black</item>
+        <item name="android:colorBackground">@color/amoled_black</item>
+        <item name="colorBackgroundFloating">@color/amoled_raised</item>
+        <item name="colorPrimary">@color/amoled_black</item>
+        <item name="colorPrimaryDark">@color/amoled_black</item>
+        <item name="colorSurface">@color/amoled_black</item>
+        <item name="chooserSectionBackground">@color/amoled_raised</item>
+        <item name="keyboardBackground">@color/amoled_black</item>
     </style>
     <style name="PrefsTheme" parent="PreferenceThemeOverlay">
         <item name="android:layout">@layout/prefs</item>
@@ -15,7 +34,10 @@
     <style name="GameChooserItem">
         <item name="android:background">?android:attr/selectableItemBackground</item>
     </style>
-    <style name="ChooserItemName" parent="@android:style/TextAppearance.Medium">
+    <style name="ChooserItemName" parent="@android:style/TextAppearance.Large">
+        <item name="android:fontFamily">sans-serif-light</item>
+    </style>
+    <style name="ChooserItemNameGrid" parent="@android:style/TextAppearance.Small">
         <item name="android:fontFamily">sans-serif-light</item>
     </style>
     <style name="Dialog.Completed" parent="@android:style/Theme.Holo.Dialog.NoActionBar">

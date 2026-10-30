@@ -67,6 +67,20 @@
 			android:title="@string/controlsReminders"
 			app:iconSpaceReserved="false" />
 
+		<SwitchPreferenceCompat
+			android:defaultValue="true"
+			android:key="showSolveTimer"
+			android:summary="@string/showSolveTimerSummary"
+			android:title="@string/showSolveTimer"
+			app:iconSpaceReserved="false" />
+
+		<SwitchPreferenceCompat
+			android:defaultValue="true"
+			android:key="showBestTime"
+			android:summary="@string/showBestTimeSummary"
+			android:title="@string/showBestTime"
+			app:iconSpaceReserved="false" />
+
 		<ListPreference
 			android:defaultValue="@string/orientationModeDefaultValue"
 			android:entries="@array/orientationModeDescs"
@@ -91,6 +105,13 @@
 			android:title="@string/nightMode"
 			app:iconSpaceReserved="false"
 			app:useSimpleSummaryProvider="true" />
+
+		<SwitchPreferenceCompat
+			android:defaultValue="false"
+			android:key="amoledBlack"
+			android:summary="@string/amoledBlackSummary"
+			android:title="@string/amoledBlack"
+			app:iconSpaceReserved="false" />
 
 		<PreferenceScreen
 			android:fragment="io.github.nandomango702.stpuzzlerelay.PrefsActivity$PrefsDisplayAndInputFragment"

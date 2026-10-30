@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Chrome surface colours, defined as theme attributes so the AMOLED
+         overlay can restyle them at runtime without touching layouts. -->
+    <attr name="chooserSectionBackground" format="color" />
+    <attr name="keyboardBackground" format="color" />
+</resources>

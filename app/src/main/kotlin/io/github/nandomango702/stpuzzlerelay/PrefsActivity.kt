@@ -7,8 +7,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
+import android.content.SharedPreferences
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.Preference
+import androidx.preference.PreferenceManager
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SeekBarPreference
@@ -25,6 +27,7 @@ import io.github.nandomango702.stpuzzlerelay.backend.GameEngineImpl
 import io.github.nandomango702.stpuzzlerelay.backend.UNEQUAL
 import io.github.nandomango702.stpuzzlerelay.config.ConfigBuilder.Event.CFG_PREFS
 import io.github.nandomango702.stpuzzlerelay.config.ConfigPreferencesBuilder
+import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.AMOLED_BLACK_KEY
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.BRIDGES_SHOW_H_KEY
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.CATEGORY_BUTTON_PRESSES
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.CATEGORY_CHOOSER
@@ -36,7 +39,7 @@ import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.MOUSE_BACK_KE
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.PLACEHOLDER_SEND_FEEDBACK
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.UNEQUAL_SHOW_H_KEY
 
-class PrefsActivity : AppCompatActivity(),
+class PrefsActivity : NightModeHelper.ActivityWithNightMode(),
     PreferenceFragmentCompat.OnPreferenceStartFragmentCallback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,6 +57,20 @@ class PrefsActivity : AppCompatActivity(),
             }
         }
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .registerOnSharedPreferenceChangeListener(amoledPrefListener)
+    }
+
+    /** Restyle immediately when the AMOLED setting is toggled on this screen. */
+    private val amoledPrefListener =
+        SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == AMOLED_BLACK_KEY) recreateForTheme()
+        }
+
+    override fun onDestroy() {
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .unregisterOnSharedPreferenceChangeListener(amoledPrefListener)
+        super.onDestroy()
     }
 
     public override fun onSaveInstanceState(outState: Bundle) {

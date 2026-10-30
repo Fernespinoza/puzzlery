@@ -1,5 +1,6 @@
 package io.github.nandomango702.stpuzzlerelay.playlist
 
+import io.github.nandomango702.stpuzzlerelay.NightModeHelper
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -10,6 +11,8 @@ import android.widget.BaseAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.edit
+import androidx.preference.PreferenceManager
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
@@ -21,7 +24,7 @@ import io.github.nandomango702.stpuzzlerelay.databinding.ActivityPlaylistsBindin
 import io.github.nandomango702.stpuzzlerelay.databinding.PlaylistRowBinding
 
 /** Lists the user's saved playlists. Play starts the first puzzle of a playlist. */
-class PlaylistsActivity : AppCompatActivity() {
+class PlaylistsActivity : NightModeHelper.ActivityWithNightMode() {
     private lateinit var binding: ActivityPlaylistsBinding
     private val playlists = mutableListOf<Playlist>()
     private lateinit var adapter: PlaylistsAdapter
@@ -35,6 +38,10 @@ class PlaylistsActivity : AppCompatActivity() {
             setDisplayHomeAsUpEnabled(true)
             title = getString(R.string.playlists)
         }
+        // One-time cleanup: the short-lived global session key (banner build)
+        // is superseded by per-playlist runs stored in PlaylistStore.
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .edit { remove("playlist_session_v1") }
         adapter = PlaylistsAdapter()
         binding.playlistList.adapter = adapter
         binding.playlistList.emptyView = binding.emptyView
@@ -67,6 +74,11 @@ class PlaylistsActivity : AppCompatActivity() {
         return true
     }
 
+    /**
+     * Starts the playlist over from the first puzzle, replacing any
+     * in-progress run of it. Used by Play (when no run is going), Restart,
+     * and Shuffle. The first board is dealt fresh, not resumed.
+     */
     private fun playPlaylist(position: Int, shuffle: Boolean = false) {
         val playlist = playlists.getOrNull(position) ?: return
         val validGames = playlist.games.filter { byLowerCase(it) != null }
@@ -76,12 +88,28 @@ class PlaylistsActivity : AppCompatActivity() {
         }
         // Shuffle only affects this playthrough; the saved playlist order is untouched.
         val playOrder = if (shuffle) validGames.shuffled() else validGames
-        val first = byLowerCase(playOrder[0])!!
+        playlists[position] = playlist.copy(sessionGames = playOrder, sessionIndex = 0)
+        PlaylistStore.save(this, playlists)
+        adapter.notifyDataSetChanged()
+        launchPlaylist(playlist.name, playOrder, 0, fresh = true)
+    }
+
+    /** Resumes the playlist's in-progress run where it stopped. */
+    private fun continuePlaylist(position: Int) {
+        val playlist = playlists.getOrNull(position) ?: return
+        val order = playlist.sessionGames ?: return
+        launchPlaylist(playlist.name, order, playlist.sessionIndex, fresh = false)
+    }
+
+    /** Starts GamePlay inside the named playlist at the given position of the given order. */
+    private fun launchPlaylist(name: String, order: List<String>, index: Int, fresh: Boolean) {
+        val backend = byLowerCase(order[index]) ?: return
         startActivity(Intent(this, GamePlay::class.java).apply {
-            data = Uri.fromParts(GamePlay.OUR_SCHEME, first.toString(), null)
-            putExtra(GamePlay.EXTRA_PLAYLIST_NAME, playlist.name)
-            putStringArrayListExtra(GamePlay.EXTRA_PLAYLIST_GAMES, ArrayList(playOrder))
-            putExtra(GamePlay.EXTRA_PLAYLIST_INDEX, 0)
+            data = Uri.fromParts(GamePlay.OUR_SCHEME, backend.toString(), null)
+            putExtra(GamePlay.EXTRA_PLAYLIST_NAME, name)
+            putStringArrayListExtra(GamePlay.EXTRA_PLAYLIST_GAMES, ArrayList(order))
+            putExtra(GamePlay.EXTRA_PLAYLIST_INDEX, index)
+            putExtra(GamePlay.EXTRA_PLAYLIST_FRESH, fresh)
         })
     }
 
@@ -98,6 +126,7 @@ class PlaylistsActivity : AppCompatActivity() {
             .setPositiveButton(R.string.delete) { _, _ ->
                 playlists.removeAt(position)
                 PlaylistStore.save(this, playlists)
+                PlaylistStore.clearBoardSlots(this, playlist.name, playlist.games)
                 adapter.notifyDataSetChanged()
             }
             .setNegativeButton(R.string.cancel, null)
@@ -119,7 +148,18 @@ class PlaylistsActivity : AppCompatActivity() {
             row.playlistCount.text = resources.getQuantityString(
                 R.plurals.playlist_puzzle_count, playlist.games.size, playlist.games.size
             )
+            // With a run in progress, Continue gets its own full-width line
+            // above the button row (five across wrapped mid-word), Play is
+            // replaced by Restart in the row, and the row stays four across.
+            // Each playlist tracks its own run, so several can be in
+            // progress at once.
+            val hasSession = playlist.hasSession
+            row.continueButton.visibility = if (hasSession) View.VISIBLE else View.GONE
+            row.continueButton.setOnClickListener { continuePlaylist(position) }
+            row.playButton.visibility = if (hasSession) View.GONE else View.VISIBLE
             row.playButton.setOnClickListener { playPlaylist(position) }
+            row.restartButton.visibility = if (hasSession) View.VISIBLE else View.GONE
+            row.restartButton.setOnClickListener { playPlaylist(position) }
             row.shuffleButton.setOnClickListener { playPlaylist(position, shuffle = true) }
             row.editButton.setOnClickListener { editPlaylist(position) }
             row.deleteButton.setOnClickListener { deletePlaylist(position) }

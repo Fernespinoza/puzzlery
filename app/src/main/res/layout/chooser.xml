@@ -46,7 +46,7 @@
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
 				android:textAppearance="?android:attr/textAppearanceMedium"
-				android:background="@color/chooser_section_background"
+				android:background="?attr/chooserSectionBackground"
 				android:paddingLeft="4dip"
 				android:paddingRight="4dip"
 				supportLib:layout_column="0"
@@ -56,7 +56,7 @@
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
 				android:textAppearance="?android:attr/textAppearanceMedium"
-				android:background="@color/chooser_section_background"
+				android:background="?attr/chooserSectionBackground"
 				android:paddingLeft="4dip"
 				android:paddingRight="4dip"
 				supportLib:layout_column="0"
@@ -72,7 +72,7 @@
 		android:layout_width="match_parent"
 		android:layout_height="?attr/actionBarSize"
 		android:layout_gravity="bottom"
-		android:background="@color/chooser_section_background"
+		android:background="?attr/chooserSectionBackground"
 		android:elevation="8dp" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

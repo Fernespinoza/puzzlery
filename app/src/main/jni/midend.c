@@ -2150,12 +2150,19 @@ const char *midend_solve(midend *me)
     /*
      * Don't use changed_state()'s return value here: some games (e.g.
      * Solo) deliberately report "not completed" for a state reached via
-     * Solve, via a "cheated" flag. From the app's point of view the
-     * puzzle IS now solved, so consult status() directly instead.
+     * Solve, via a "cheated" flag.
+     *
+     * Don't consult the new state's status() either: it does not
+     * reliably describe a solver-finished game. Mines reports one as
+     * -1 by design, Black Box's Solve is a reveal scored -1 when the
+     * guesses were wrong or incomplete, and Mines' reveal doesn't even
+     * set its won flag, leaving status at 0 with the whole grid
+     * exposed. Reaching this point means solve_game produced a move
+     * and execute_move applied it, so the run is over by definition;
+     * all that matters is that the game was still live beforehand.
      */
     bool just_completed =
-        me->ourgame->status(me->states[me->statepos-1].state) > 0 &&
-        me->ourgame->status(me->states[me->statepos-2].state) <= 0;
+        me->ourgame->status(me->states[me->statepos-2].state) == 0;
     changed_state(me->drawing, me->statepos > 1, me->statepos < me->nstates);
     me->dir = +1;
     if (me->ourgame->flags & SOLVE_ANIMATES) {

@@ -13,7 +13,13 @@ class GameLaunch private constructor(
     val params: String? = null,
     val gameID: String? = null,
     val seed: String? = null,
-    val saved: String? = null
+    val saved: String? = null,
+    /**
+     * True when this launch came out of the generator (see
+     * [finishedGenerating]). Such launches carry a save string like a
+     * restore does, but they are fresh games — not a game being resumed.
+     */
+    val generated: Boolean = false
 ) {
 
     enum class Origin(val shouldReturnToChooserOnFail: Boolean, val isOfLocalState: Boolean) {
@@ -44,7 +50,7 @@ class GameLaunch private constructor(
 
     fun finishedGenerating(savedNow: String): GameLaunch {
         check(saved == null) { "finishedGenerating called twice" }
-        return GameLaunch(origin, whichBackend, params, gameID, seed, savedNow)
+        return GameLaunch(origin, whichBackend, params, gameID, seed, savedNow, generated = true)
     }
 
     companion object {
@@ -94,6 +100,24 @@ class GameLaunch private constructor(
             require(pos >= 0) { "Seed invalid: $seed" }
             return GameLaunch(
                 Origin.CUSTOM_DIALOG, whichBackend, params = seed.substring(0, pos), seed = seed
+            )
+        }
+
+        /**
+         * Restoring an in-progress daily attempt: carries both the daily
+         * seed (so the launch still counts as the daily) and the saved
+         * board, so it resumes instead of regenerating.
+         */
+        @JvmStatic
+        fun ofDailyAttempt(whichBackend: BackendName, seed: String, saved: String): GameLaunch {
+            val pos = seed.indexOf('#')
+            require(pos >= 0) { "Seed invalid: $seed" }
+            return GameLaunch(
+                Origin.RESTORING_LAST_STATE_FROM_CHOOSER,
+                whichBackend,
+                params = seed.substring(0, pos),
+                seed = seed,
+                saved = saved
             )
         }
     }

@@ -33,6 +33,8 @@ object PrefsConstants {
     const val SAVED_COMPLETED_PREFIX = "savedCompleted_"
     const val SAVED_GAME_PREFIX = "savedGame_"
     const val SAVED_TIMER_PREFIX = "savedTimer_"
+    const val SAVED_USED_SOLVE_PREFIX = "savedUsedSolve_"
+    const val SAVED_USED_RESTART_PREFIX = "savedUsedRestart_"
     const val SWAP_L_R_PREFIX = "swap_l_r_"
     const val UNDO_NEW_GAME_SEEN = "undoNewGameSeen"
     const val REDO_NEW_GAME_SEEN = "redoNewGameSeen"
@@ -41,6 +43,13 @@ object PrefsConstants {
     const val AUTO_ORIENT = "autoOrient"
     const val AUTO_ORIENT_DEFAULT = true
     const val NIGHT_MODE_KEY = "nightMode"
+    const val AMOLED_BLACK_KEY = "amoledBlack"
+    const val SHOW_SOLVE_TIMER_KEY = "showSolveTimer"
+    const val SHOW_BEST_TIME_KEY = "showBestTime"
+    const val BEST_TIME_PREFIX = "bestTime_"
+    /** Per-puzzle totals for the stats screen: solve count and summed solve time, by backend. */
+    const val SOLVE_COUNT_PREFIX = "solveCount_"
+    const val TOTAL_TIME_PREFIX = "totalTime_"
     const val SEEN_NIGHT_MODE = "seenNightMode"
     const val SEEN_NIGHT_MODE_SETTING = "seenNightModeSetting"
 }

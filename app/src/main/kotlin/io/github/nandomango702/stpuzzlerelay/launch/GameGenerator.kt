@@ -72,12 +72,17 @@ class GameGenerator {
                     throw IOException("Internal error generating game: result is blank")
                 }
             } catch (e: IOException) {
-                callback.gameGeneratorFailure(e, input)
+                if (!future.isCancelled) callback.gameGeneratorFailure(e, input)
                 return@submit
             } catch (e: IllegalArgumentException) {
-                callback.gameGeneratorFailure(e, input)
+                if (!future.isCancelled) callback.gameGeneratorFailure(e, input)
                 return@submit
             }
+            // The cancel check after waitFor() isn't the last word:
+            // cancellation can land while the output is being read, and a
+            // stale callback would then start (or abort) a game the user
+            // has already moved away from. Re-check at the callback.
+            if (future.isCancelled) return@submit
             callback.gameGeneratorSuccess(input.finishedGenerating(generated), previousGame)
         }
         return future

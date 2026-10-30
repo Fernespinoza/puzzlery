@@ -886,6 +886,34 @@ __attribute__((unused)) JNIEXPORT jobjectArray JNICALL Java_io_github_nandomango
 	return getPresetsInternal(env, fe, menu);
 }
 
+/*
+ * Static version of getPresets for callers (e.g. the daily picker) that need
+ * a backend's preset menu before any game exists. Builds a headless midend
+ * with null_drawing and reads the game's static preset menu — no puzzle is
+ * generated, so this is cheap. The midend (and its preset menu) is freed
+ * after conversion; the returned MenuEntry objects are plain Java copies.
+ */
+JNIEXPORT jobjectArray JNICALL Java_io_github_nandomango702_stpuzzlerelay_backend_GameEngineImpl_getPresetsForBackend(JNIEnv *env,
+																 __attribute__((unused)) jclass clazz,
+																 jobject backendEnum)
+{
+	const game * g = gameFromEnum(env, backendEnum);
+	if (!g) {
+		throwIllegalStateException(env, "Internal error identifying game in getPresetsForBackend");
+		return NULL;
+	}
+	frontend *new_fe = snew(frontend);
+	memset(new_fe, 0, sizeof(frontend));
+	new_fe->env = env;
+	new_fe->thegame = g;
+	new_fe->me = midend_new(new_fe, g, &null_drawing, new_fe);
+	struct preset_menu* menu = midend_get_presets(new_fe->me, NULL);
+	jobjectArray ret = getPresetsInternal(env, new_fe, menu);
+	midend_free(new_fe->me);
+	sfree(new_fe);
+	return ret;
+}
+
 __attribute__((unused)) JNIEXPORT jint JNICALL Java_io_github_nandomango702_stpuzzlerelay_backend_GameEngineImpl_getUiVisibility(JNIEnv *env, jobject gameEngine) {
 	ENV_TO_FE_OR_THROW_ISE("Internal error in getUIVisibility", 0)
 	return (midend_can_undo(fe->me))

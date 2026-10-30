@@ -1,5 +1,6 @@
 package io.github.nandomango702.stpuzzlerelay.playlist
 
+import io.github.nandomango702.stpuzzlerelay.NightModeHelper
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -22,7 +23,7 @@ import io.github.nandomango702.stpuzzlerelay.databinding.PlaylistGameRowBinding
  * Creates or edits a playlist. The user names it, then taps puzzles to select
  * them; the playlist order is the order in which puzzles were tapped.
  */
-class PlaylistEditorActivity : AppCompatActivity() {
+class PlaylistEditorActivity : NightModeHelper.ActivityWithNightMode() {
     private lateinit var binding: ActivityPlaylistEditorBinding
     private val games = BackendName.all.sortedBy { it.displayName }
 
@@ -38,11 +39,13 @@ class PlaylistEditorActivity : AppCompatActivity() {
         setSupportActionBar(binding.toolbar)
         // Edge-to-edge is enforced (targetSdk 36), so lift the content above the
         // system navigation bar / keyboard, following the pattern in GameChooser.
+        // Top inset too: without it the toolbar slides under the status bar
+        // and the title clips through it. Sides too: in landscape the nav
+        // bar sits on a side edge, and without the side insets the rows
+        // run underneath it.
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
             val insets = windowInsets.getInsets(systemBars() or displayCutout() or ime())
-            // Top inset too: without it the toolbar slides under the status bar
-            // and the title clips through it.
-            v.updatePadding(top = insets.top, bottom = insets.bottom)
+            v.updatePadding(left = insets.left, top = insets.top, right = insets.right, bottom = insets.bottom)
             WindowInsetsCompat.CONSUMED
         }
         supportActionBar?.apply {
@@ -80,13 +83,32 @@ class PlaylistEditorActivity : AppCompatActivity() {
             return
         }
         val playlists = PlaylistStore.load(this)
-        val playlist = Playlist(name, selectedOrder.toList())
+        val existing = playlists.getOrNull(editPosition)
+        // An in-progress run survives an edit only if the puzzles themselves
+        // are untouched (a rename is fine); changing the games ends the run.
+        val keepSession = existing != null && existing.games == selectedOrder.toList()
+        val playlist = Playlist(
+            name,
+            selectedOrder.toList(),
+            if (keepSession) existing.sessionGames else null,
+            if (keepSession) existing.sessionIndex else 0,
+        )
         if (editPosition in playlists.indices) {
             playlists[editPosition] = playlist
         } else {
             playlists.add(playlist)
         }
         PlaylistStore.save(this, playlists)
+        // Board slots follow the same rule as the run: a rename with the
+        // games untouched carries the boards to the new name; an edit
+        // that ends the run drops them.
+        if (existing != null) {
+            if (keepSession && existing.name != name) {
+                PlaylistStore.renameBoardSlots(this, existing.name, name, playlist.games)
+            } else if (!keepSession) {
+                PlaylistStore.clearBoardSlots(this, existing.name, existing.games)
+            }
+        }
         finish()
     }
 

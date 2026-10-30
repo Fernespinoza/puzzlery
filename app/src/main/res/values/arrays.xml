@@ -47,11 +47,15 @@
 	</array>
 	<array name="chooserStyles">
 		<item>list</item>
+		<item>names</item>
 		<item>grid</item>
+		<item>gridnames</item>
 	</array>
 	<string name="chooserStyleDefaultValue" translatable="false">list</string>
 	<array name="chooserStyleDescs">
 		<item>@string/chooserStyleList</item>
+		<item>@string/chooserStyleNames</item>
 		<item>@string/chooserStyleGrid</item>
+		<item>@string/chooserStyleGridNames</item>
 	</array>
 </resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Night variant of the base style: same chrome colours (which resolve
+         to their values-night entries), but WITHOUT the day-only window
+         background and text colours from values/styles.xml, so night mode
+         keeps AppCompat's dark defaults exactly as before. -->
+    <style name="NoActionBar" parent="@style/Theme.AppCompat.DayNight.NoActionBar">
+        <item name="chooserSectionBackground">@color/chooser_section_background</item>
+        <item name="keyboardBackground">@color/keyboard_background</item>
+    </style>
+</resources>

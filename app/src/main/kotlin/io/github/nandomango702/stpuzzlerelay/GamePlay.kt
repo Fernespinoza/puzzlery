@@ -103,6 +103,9 @@ import io.github.nandomango702.stpuzzlerelay.config.ConfigBuilder.Event.CFG_SETT
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.ARROW_KEYS_KEY_SUFFIX
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.AUTO_ORIENT
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.AUTO_ORIENT_DEFAULT
+import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.BEST_TIME_PREFIX
+import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SOLVE_COUNT_PREFIX
+import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.TOTAL_TIME_PREFIX
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.BRIDGES_SHOW_H_KEY
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.CHOOSER_STYLE_KEY
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.COMPLETED_PROMPT_KEY
@@ -122,6 +125,10 @@ import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SAVED_BACKEND
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SAVED_COMPLETED_PREFIX
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SAVED_GAME_PREFIX
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SAVED_TIMER_PREFIX
+import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SAVED_USED_RESTART_PREFIX
+import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SAVED_USED_SOLVE_PREFIX
+import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SHOW_BEST_TIME_KEY
+import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SHOW_SOLVE_TIMER_KEY
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.STATE_PREFS_NAME
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.STAY_AWAKE_KEY
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.UNDO_NEW_GAME_SEEN
@@ -132,12 +139,14 @@ import io.github.nandomango702.stpuzzlerelay.daily.DailyPuzzle
 import io.github.nandomango702.stpuzzlerelay.databinding.CompletedDialogBinding
 import io.github.nandomango702.stpuzzlerelay.databinding.MainBinding
 import io.github.nandomango702.stpuzzlerelay.launch.DeprecatedProgressDialog
+import io.github.nandomango702.stpuzzlerelay.playlist.PlaylistStore
 import io.github.nandomango702.stpuzzlerelay.launch.GameGenerator
 import io.github.nandomango702.stpuzzlerelay.launch.GameGenerator.Companion.cleanUpOldExecutables
 import io.github.nandomango702.stpuzzlerelay.launch.GameGenerator.Companion.executableIsMissing
 import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch
 import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch.Companion.fromContentURI
 import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch.Companion.fromSeed
+import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch.Companion.ofDailyAttempt
 import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch.Companion.ofGameID
 import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch.Companion.ofLocalState
 import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch.Companion.ofSavedGameFromIntent
@@ -181,6 +190,14 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
     private var undoIsLoadGame = false
     private var redoIsLoadGame = false
     private var undoToGame: String? = null
+
+    /**
+     * Set by leaveDailyToPractice(): the practice transition must not
+     * leave the daily board behind as the undo target, or Undo would
+     * restore the attempt as an ordinary game (the 7c hole). Consumed
+     * by the next startGameConfirmed.
+     */
+    private var suppressUndoToGameOnce = false
     private var redoToGame: String? = null
     private var gameWantsTimer = false
 
@@ -190,6 +207,24 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
     private var solveStartRealtime: Long? = null
     private var solveFinalMillis: Long? = null
     private var solvePausedAtRealtime: Long? = null
+    // True if "Show solution" was used on the current puzzle. Such a solve
+    // must never count as a best time (it would always "win" in seconds).
+    private var usedShowSolution = false
+    /**
+     * Set when the player restarts the current puzzle: that run no longer
+     * counts for records — restarting lets you finish a known board in
+     * seconds. Cleared for fresh puzzles in resetSolveTimer; leaving and
+     * resuming does not set it.
+     */
+    private var usedRestart = false
+    /**
+     * True when the just-finished game set a new best time for its
+     * preset: the completion dialog shows the "New best" line for it.
+     * Set in completedInternal, cleared for fresh puzzles in
+     * resetSolveTimer (so re-showing the dialog still shows it, but a
+     * new game starts clean).
+     */
+    private var lastSolveSetNewBest = false
 
     // Playlist play mode: set from intent extras when launched from PlaylistsActivity.
     // playlistGames holds BackendName source names in play order; playlistIndex is the
@@ -203,7 +238,23 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
     /** Date string ("2026-10-21") when this GamePlay is showing the daily puzzle, else null. */
     private var dailyModeDate: String? = null
 
+    /** Daily mode ("easy"/"hard") and its preset params; only meaningful in daily mode. */
+    private var dailyMode: String? = null
+    private var dailyModeParams: String? = null
+
     private fun inDailyMode() = dailyModeDate != null
+
+    /**
+     * Save-slot key for a backend in the state prefs. Ordinary games key
+     * by the bare backend name; a game played as part of a playlist keys
+     * by backend + playlist name, so playlist boards and general-play
+     * boards of the same puzzle live apart and never overwrite each
+     * other (Fernando, 2026-10-28: finishing Mines from the games list
+     * used to spend the board a playlist run was sitting on). [playlist]
+     * defaults to the running game's playlist.
+     */
+    private fun slotKey(backend: BackendName, playlist: String? = playlistName): String =
+        if (playlist != null) "$backend|pl|$playlist" else backend.toString()
 
     private fun readPlaylistExtras(intent: Intent) {
         val games = intent.getStringArrayListExtra(EXTRA_PLAYLIST_GAMES)
@@ -231,6 +282,9 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
     private var everCompleted = false
     private var _wasNight = false
     private var appStartIntentOnResume: Intent? = null
+
+    /** True when this instance was recreated with saved state (theme flip, process restore). */
+    private var restoredInstance = false
     private var swapLROn = false
 
     private enum class UIVisibility(val value: Int) {
@@ -302,10 +356,13 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         }
     }
 
-    /** Elapsed solve time in milliseconds; 0 if the timer hasn't started. */
+    /** Elapsed solve time in milliseconds; 0 if the timer hasn't started.
+     * solveFinalMillis already holds a duration once solved, so it is
+     * returned directly instead of subtracting the start time again. */
     private fun solveElapsedMillis(): Long {
+        solveFinalMillis?.let { return it }
         val start = solveStartRealtime ?: return 0
-        return (solveFinalMillis ?: SystemClock.elapsedRealtime()) - start
+        return SystemClock.elapsedRealtime() - start
     }
 
     private fun formatSolveTime(millis: Long): String {
@@ -318,7 +375,50 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
     }
 
     private fun updateSolveTimerDisplay() {
-        timerView?.text = formatSolveTime(solveElapsedMillis())
+        val time = formatSolveTime(solveElapsedMillis())
+        // While playing (not yet solved), append the best time when the
+        // setting is on and a best exists. After a solve the clock shows
+        // just the final time, so a new record never reads "time · Best time".
+        timerView?.text = if (prefs.getBoolean(SHOW_BEST_TIME_KEY, true)
+            && solveFinalMillis == null
+        ) {
+            bestTimeMillis()?.let { best ->
+                "$time · ${getString(R.string.bestTimeDisplay, formatSolveTime(best))}"
+            } ?: time
+        } else {
+            time
+        }
+    }
+
+    /** Fastest legit solve time for the current puzzle preset, or null if none recorded. */
+    private fun bestTimeMillis(): Long? {
+        val key = bestTimeKey() ?: return null
+        val best = state.getLong(key, -1)
+        return if (best >= 0) best else null
+    }
+
+    /**
+     * Storage key for the current game's best time: backend + its params
+     * string, so each preset (size, difficulty, ...) keeps its own record.
+     * Any W×H dimensions are sorted ascending first: the app flips w/h on
+     * rotate, so without this the portrait and landscape orientations of
+     * the same preset would keep separate records. Params without
+     * dimensions pass through unchanged. Null when no game is running.
+     */
+    private fun bestTimeKey(): String? {
+        val backend = currentBackend ?: return null
+        val params = gameEngine.currentParams ?: return null
+        return bestTimeKeyFor(backend, params)
+    }
+
+    /**
+     * Shows or hides the solve clock per the "Show solve timer" setting.
+     * Tracking itself keeps running either way, so re-enabling mid-game
+     * shows the true elapsed time.
+     */
+    private fun applySolveTimerVisibility() {
+        timerView?.visibility =
+            if (prefs.getBoolean(SHOW_SOLVE_TIMER_KEY, true)) View.VISIBLE else View.GONE
     }
 
     /** Starts the solve timer on the player's first move of a puzzle. */
@@ -347,6 +447,9 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         solveStartRealtime = null
         solveFinalMillis = null
         solvePausedAtRealtime = null
+        usedShowSolution = false
+        usedRestart = false
+        lastSolveSetNewBest = false
         updateSolveTimerDisplay()
     }
 
@@ -356,8 +459,18 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
      */
     private fun restoreSolveTimer() {
         val backend = currentBackend
-        val elapsed = if (backend != null) state.getLong(SAVED_TIMER_PREFIX + backend, -1) else -1
+        val elapsed = if (backend != null) {
+            state.getLong(SAVED_TIMER_PREFIX + slotKey(backend), -1)
+        } else {
+            -1
+        }
         resetSolveTimer()
+        if (backend != null) {
+            // The disqualifying flags were saved with the board (daily
+            // resumes seed these keys from the attempt record first).
+            usedShowSolution = state.getBoolean(SAVED_USED_SOLVE_PREFIX + slotKey(backend), false)
+            usedRestart = state.getBoolean(SAVED_USED_RESTART_PREFIX + slotKey(backend), false)
+        }
         if (elapsed >= 0) {
             solveStartRealtime = SystemClock.elapsedRealtime() - elapsed
             updateSolveTimerDisplay()
@@ -401,11 +514,16 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
     }
 
     private fun resetBackendState(backend: BackendName) {
+        val key = slotKey(backend)
         state.edit().apply {
-            remove(SAVED_GAME_PREFIX + backend)
-            remove(SAVED_COMPLETED_PREFIX + backend)
-            remove(LAST_PARAMS_PREFIX + backend)
-            remove(SAVED_TIMER_PREFIX + backend)
+            remove(SAVED_GAME_PREFIX + key)
+            remove(SAVED_COMPLETED_PREFIX + key)
+            // The remembered preset belongs to general play; a playlist
+            // reset must not forget it.
+            if (playlistName == null) remove(LAST_PARAMS_PREFIX + backend)
+            remove(SAVED_TIMER_PREFIX + key)
+            remove(SAVED_USED_SOLVE_PREFIX + key)
+            remove(SAVED_USED_RESTART_PREFIX + key)
             apply()
         }
         prefs.edit { remove(backend.preferencesName) }
@@ -431,18 +549,57 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
     private fun save() {
         if (currentBackend == null) return
         val saved = saveToString()
-        state.edit().apply {
-            remove("engineName")
-            putString(SAVED_BACKEND, currentBackend.toString())
-            putString(SAVED_GAME_PREFIX + currentBackend, saved)
-            putBoolean(SAVED_COMPLETED_PREFIX + currentBackend, everCompleted)
-            putString(LAST_PARAMS_PREFIX + currentBackend, gameEngine.currentParams)
-            // Persist the solve timer alongside the board, so leaving and coming
-            // back resumes the clock instead of resetting it.
-            val timerKey = SAVED_TIMER_PREFIX + currentBackend
-            val elapsed = solveElapsedForSave()
-            if (elapsed >= 0) putLong(timerKey, elapsed) else remove(timerKey)
-            apply()
+        // Daily sessions save ONLY the attempt copy further below, never
+        // the per-backend slot: writing the daily board there silently
+        // replaced an in-progress normal game of the same puzzle, and a
+        // later chooser tap then resumed the daily board as an ordinary
+        // game (solving it credited the normal stats, not the daily). The
+        // SAVED_BACKEND pointer is part of that normal resume state, so
+        // it stays with the last normal game too.
+        if (dailyModeDate == null) {
+            // Playlist games save to their own per-playlist slot (see
+            // slotKey); the SAVED_BACKEND resume pointer and the
+            // remembered preset describe general play only, so playlist
+            // saves leave both alone — the same reasoning as daily mode.
+            val key = slotKey(currentBackend!!)
+            state.edit().apply {
+                remove("engineName")
+                if (playlistName == null) {
+                    putString(SAVED_BACKEND, currentBackend.toString())
+                    putString(LAST_PARAMS_PREFIX + currentBackend, gameEngine.currentParams)
+                }
+                putString(SAVED_GAME_PREFIX + key, saved)
+                putBoolean(SAVED_COMPLETED_PREFIX + key, everCompleted)
+                // Persist the solve timer alongside the board, so leaving and coming
+                // back resumes the clock instead of resetting it.
+                val timerKey = SAVED_TIMER_PREFIX + key
+                val elapsed = solveElapsedForSave()
+                if (elapsed >= 0) putLong(timerKey, elapsed) else remove(timerKey)
+                // Persist the record-disqualifying flags with the board, so
+                // leaving and resuming can't launder a restarted or
+                // solution-shown run back into a recordable one.
+                putBoolean(SAVED_USED_SOLVE_PREFIX + key, usedShowSolution)
+                putBoolean(SAVED_USED_RESTART_PREFIX + key, usedRestart)
+                apply()
+            }
+        }
+        // Daily mode: keep a separate copy of the in-progress attempt (see
+        // DailyPuzzle). The per-backend slot above can't serve this: normal
+        // games of the same type — including Practice from the same picker —
+        // would overwrite it. Solved games are never stored: completion
+        // clears the slot, and a replay after solving generates fresh.
+        // The attempt counts as started once the solve timer is running,
+        // i.e. the player has interacted with the board; before that,
+        // re-entering just regenerates the identical board, so nothing
+        // is lost by not resuming.
+        dailyModeDate?.let { date ->
+            if (solveFinalMillis == null) {
+                DailyPuzzle.recordAttempt(
+                    this, date, DailyPuzzle.Mode.fromString(dailyMode),
+                    saved, solveElapsedForSave(), solveStartRealtime != null,
+                    usedShowSolution, usedRestart
+                )
+            }
         }
     }
 
@@ -480,6 +637,7 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         applyStayAwake()
         applyOrientation()
         super.onCreate(savedInstanceState)
+        restoredInstance = savedInstanceState != null
         readPlaylistExtras(intent)
         if (executableIsMissing(this)) {
             finish()
@@ -512,6 +670,7 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         mainLayout = _binding.mainLayout
         statusBar = _binding.statusBar
         timerView = _binding.timerView
+        applySolveTimerVisibility()
         updateSolveTimerDisplay()
         gameView = _binding.gameView
         ViewCompat.setOnApplyWindowInsetsListener(gameView) { v, windowInsets ->
@@ -573,9 +732,15 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        // Keep the activity's intent current: without this, a later recreate
+        // redelivers the FIRST launch intent of this task, replaying a stale
+        // game (and the playlist's starting position) instead of the latest.
+        setIntent(intent)
         readPlaylistExtras(intent)
         // Daily mode is per-launch: any new intent without the extra leaves daily mode.
         dailyModeDate = intent.getStringExtra(EXTRA_DAILY_DATE)
+        dailyMode = intent.getStringExtra(EXTRA_DAILY_MODE)
+        dailyModeParams = intent.getStringExtra(EXTRA_DAILY_PARAMS)
         progress?.let {
             stopGameGeneration()
             dismissProgress()
@@ -614,6 +779,7 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
                     }
                     if (incoming == currentBackend && !everCompleted
                         && intent.getStringExtra(EXTRA_DAILY_DATE) == null
+                        && !intent.getBooleanExtra(EXTRA_PLAYLIST_FRESH, false)
                     ) {
                         // already alive & playing incomplete game of that kind; keep it.
                         // (A daily launch always proceeds: the user explicitly asked for today's puzzle.)
@@ -630,7 +796,7 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
                     }
                     try {
                         checkSize(u)
-                        startGame(fromContentURI(readAllOf(contentResolver.openInputStream(u))))
+                        startGame(fromContentURI(readAllOf(contentResolver.openInputStream(u), MAX_SAVE_SIZE)))
                     } catch (e: IllegalArgumentException) {
                         e.printStackTrace()
                         abort(e.message, true)
@@ -645,21 +811,66 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         if (backendFromChooser != null) {
             val dailyDate = dailyModeDate
             if (dailyDate != null) {
-                // Daily puzzle: deterministic seed from the date, always generated fresh.
-                // Raw default params (no per-device orientation tweak) so every player
-                // gets the identical puzzle that day.
-                val params = getDefaultParams(backendFromChooser)
+                // Daily puzzle: deterministic seed from the date, so every player
+                // gets the identical puzzle that day, in the picked mode.
+                // Raw preset params (no per-device orientation tweak).
+                val params = dailyModeParams ?: getDefaultParams(backendFromChooser)
+                val mode = DailyPuzzle.Mode.fromString(dailyMode)
+                val attempt = if (DailyPuzzle.completionTime(this, dailyDate, mode) == null)
+                    DailyPuzzle.attemptSave(this, dailyDate, mode) else null
+                if (attempt != null) {
+                    // Resume the in-progress attempt instead of regenerating:
+                    // a fresh board after the player has already learned from
+                    // the last attempt would let them cheese the daily.
+                    // (A solved mode replays fresh instead: the first
+                    // completion already stands, so there's nothing to protect.)
+                    // Seed the normal timer key with the attempt's elapsed
+                    // time so the restore branch picks it up; same for the
+                    // attempt's record-disqualifying flags.
+                    val timer = DailyPuzzle.attemptTimer(this, dailyDate, mode)
+                    state.edit {
+                        val timerKey = SAVED_TIMER_PREFIX + backendFromChooser
+                        if (timer >= 0) putLong(timerKey, timer) else remove(timerKey)
+                        putBoolean(
+                            SAVED_USED_SOLVE_PREFIX + backendFromChooser,
+                            DailyPuzzle.attemptUsedShowSolution(this@GamePlay, dailyDate, mode)
+                        )
+                        putBoolean(
+                            SAVED_USED_RESTART_PREFIX + backendFromChooser,
+                            DailyPuzzle.attemptUsedRestart(this@GamePlay, dailyDate, mode)
+                        )
+                    }
+                    Log.d(TAG, "resuming daily attempt for $dailyDate")
+                    startGame(ofDailyAttempt(backendFromChooser, "$params#$dailyDate", attempt))
+                    return
+                }
                 Log.d(TAG, "generating daily puzzle for $dailyDate")
                 startGame(fromSeed(backendFromChooser, "$params#$dailyDate"))
                 return
             }
+            if (!restoredInstance && intent.getBooleanExtra(EXTRA_PLAYLIST_FRESH, false)) {
+                // A playlist start-over: deal a fresh board instead of
+                // resuming the in-progress one, which is what made Play
+                // feel like it merely continued the old run. (Recreates
+                // ignore the flag and resume, like any other launch.)
+                Log.d(TAG, "playlist start-over; generating fresh")
+                startGame(toGenerateFromChooser(backendFromChooser))
+                return
+            }
+            // Playlist entries resume the playlist's own board for this
+            // puzzle; chooser entries resume the general one (slotKey).
+            val entryPlaylist = intent.getStringExtra(EXTRA_PLAYLIST_NAME)
+                ?.takeIf {
+                    !intent.getStringArrayListExtra(EXTRA_PLAYLIST_GAMES).isNullOrEmpty()
+                }
+            val entryKey = slotKey(backendFromChooser, entryPlaylist)
             val savedGame =
-                state.getString(SAVED_GAME_PREFIX + backendFromChooser, null)
+                state.getString(SAVED_GAME_PREFIX + entryKey, null)
             // We have a saved game, and if it's completed the user probably wants a fresh one.
             // Theoretically we could silently load it and ask midend_status() but remembering is
             // still faster and some people play large games.
             val wasCompleted = state.getBoolean(
-                SAVED_COMPLETED_PREFIX + backendFromChooser,
+                SAVED_COMPLETED_PREFIX + entryKey,
                 false
             )
             if (savedGame == null || wasCompleted) {
@@ -669,23 +880,50 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
             }
             Log.d(TAG, "restoring last state of $backendFromChooser")
             startGame(ofLocalState(backendFromChooser, savedGame, true))
-        } else {
-            val savedBackend = byLowerCase(state.getString(SAVED_BACKEND, null))
-            if (savedBackend != null) {
-                val savedGame =
-                    state.getString(SAVED_GAME_PREFIX + savedBackend, null)
-                if (savedGame == null) {
-                    Log.e(TAG, "missing state for $savedBackend")
-                    startGame(toGenerateFromChooser(savedBackend))
+        } else if (!resumeSavedGame()) {
+            Log.d(TAG, "no state, starting chooser")
+            startChooserAndFinish()
+        }
+    }
+
+    /**
+     * Starts the game held in the normal save slot (SAVED_BACKEND). Used by
+     * plain relaunches and by recreate restores. Returns false only when
+     * there is no saved backend at all.
+     */
+    private fun resumeSavedGame(): Boolean {
+        // A recreated playlist game resumes the board from its own
+        // playlist slot; the general pointer below describes general
+        // play only, so it can't stand in for it.
+        val plName = intent.getStringExtra(EXTRA_PLAYLIST_NAME)
+        if (plName != null) {
+            val uriBackend = intent.data?.takeIf { it.scheme == OUR_SCHEME }
+                ?.schemeSpecificPart?.split(":".toRegex(), limit = 2)
+                ?.firstOrNull()?.let { byLowerCase(it) }
+            if (uriBackend != null) {
+                val plSaved = state.getString(
+                    SAVED_GAME_PREFIX + slotKey(uriBackend, plName), null
+                )
+                if (plSaved != null) {
+                    Log.d(TAG, "recreate; resuming playlist game of $uriBackend")
+                    startGame(ofLocalState(uriBackend, plSaved, false))
                 } else {
-                    Log.d(TAG, "normal launch; resuming game of $savedBackend")
-                    startGame(ofLocalState(savedBackend, savedGame, false))
+                    Log.d(TAG, "recreate; no playlist board, generating $uriBackend")
+                    startGame(toGenerateFromChooser(uriBackend))
                 }
-            } else {
-                Log.d(TAG, "no state, starting chooser")
-                startChooserAndFinish()
+                return true
             }
         }
+        val savedBackend = byLowerCase(state.getString(SAVED_BACKEND, null)) ?: return false
+        val savedGame = state.getString(SAVED_GAME_PREFIX + savedBackend, null)
+        if (savedGame == null) {
+            Log.e(TAG, "missing state for $savedBackend")
+            startGame(toGenerateFromChooser(savedBackend))
+        } else {
+            Log.d(TAG, "normal launch; resuming game of $savedBackend")
+            startGame(ofLocalState(savedBackend, savedGame, false))
+        }
+        return true
     }
 
     private fun warnOfStateLoss(
@@ -694,9 +932,9 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         returnToChooser: Boolean
     ) {
         var careAboutOldGame =
-            !state.getBoolean(SAVED_COMPLETED_PREFIX + backend, true)
+            !state.getBoolean(SAVED_COMPLETED_PREFIX + slotKey(backend), true)
         if (careAboutOldGame) {
-            val savedGame = state.getString(SAVED_GAME_PREFIX + backend, null)
+            val savedGame = state.getString(SAVED_GAME_PREFIX + slotKey(backend), null)
             if (savedGame == null || savedGame.contains("NSTATES :1:1")) {
                 careAboutOldGame = false
             }
@@ -796,18 +1034,33 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         val gameMenu = popupMenuWithIcons()
         gameMenu.menuInflater.inflate(R.menu.game_menu, gameMenu.menu)
         val solveItem = gameMenu.menu.findItem(R.id.solve)
-        solveItem.isEnabled = solveEnabled
-        solveItem.isVisible = solveEnabled
+        // No Show-solution in daily mode: either you solve it or you don't.
+        solveItem.isEnabled = solveEnabled && !inDailyMode()
+        solveItem.isVisible = solveEnabled && !inDailyMode()
+        // No Restart in daily mode: retrying the identical board with
+        // knowledge from the last attempt would give the daily away.
+        val restartItem = gameMenu.menu.findItem(R.id.restart)
+        restartItem.isEnabled = !inDailyMode()
+        restartItem.isVisible = !inDailyMode()
+        // In daily mode the New game slot becomes the practice exit
+        // (Fernando, 2026-10-28): an ordinary fresh board of the same
+        // puzzle and preset. The daily attempt is saved first and stays
+        // resumable from the picker.
+        if (inDailyMode()) {
+            gameMenu.menu.findItem(R.id.new_game).title =
+                getString(R.string.daily_leave_to_practice)
+        }
         // Re-show the completion dialog if it was dismissed (e.g. via the back button).
         val showResultItem = gameMenu.menu.findItem(R.id.show_result)
         showResultItem.isEnabled = reshowCompletion != null
         showResultItem.isVisible = reshowCompletion != null
         gameMenu.setOnMenuItemClickListener { item: MenuItem ->
             when (item.itemId) {
-                R.id.new_game -> startNewGame()
+                R.id.new_game -> if (inDailyMode()) leaveDailyToPractice() else startNewGame()
                 R.id.show_result -> reshowCompletion?.invoke()
                 R.id.restart -> {
                     resetSolveTimer()
+                    usedRestart = true
                     gameEngine.restartEvent()
                 }
                 R.id.solve -> solveMenuItemClicked()
@@ -827,10 +1080,34 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         gameMenu.show()
     }
 
+    /**
+     * The daily's practice exit: bank the attempt exactly as it stands
+     * (so the picker can resume it later), then start an ordinary fresh
+     * board of the same puzzle at the daily mode's preset. The startGame
+     * guard drops daily mode for the new launch, as it does for any
+     * non-daily seed.
+     */
+    private fun leaveDailyToPractice() {
+        val backend = currentBackend ?: return
+        val params = dailyModeParams ?: getDefaultParams(backend)
+        save()
+        suppressUndoToGameOnce = true
+        startGame(
+            GameLaunch.toGenerate(backend, params, GameLaunch.Origin.CUSTOM_DIALOG)
+        )
+    }
+
     private fun solveMenuItemClicked() {
         try {
+            // The flag goes on BEFORE the call on purpose: the completion
+            // callback fires synchronously inside solveEvent() and reads
+            // it to decide whether the solve may be recorded.
+            usedShowSolution = true
             gameEngine.solveEvent()
         } catch (e: IllegalArgumentException) {
+            // The solver refused and applied nothing, so the run was
+            // never actually shown a solution: roll the flag back.
+            usedShowSolution = false
             messageBox(getString(R.string.Error), e.message, false)
         }
     }
@@ -907,8 +1184,9 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
             setForceShowIcon(true)
             menuInflater.inflate(R.menu.help_menu, menu)
             menu.findItem(R.id.solve).apply {
-                isEnabled = solveEnabled
-                isVisible = solveEnabled
+                // No Show-solution in daily mode: either you solve it or you don't.
+                isEnabled = solveEnabled && !inDailyMode()
+                isVisible = solveEnabled && !inDailyMode()
             }
             menu.findItem(R.id.this_game).title = MessageFormat.format(
                 getString(R.string.how_to_play_game), this@GamePlay.title
@@ -1020,6 +1298,20 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
 
     private fun startGame(launch: GameLaunch, isRedo: Boolean) {
         Log.d(TAG, "startGame: $launch")
+        // Leaving the daily: any fresh game that isn't today's date-seeded
+        // daily (New game, a preset switch, a custom seed, a restore)
+        // becomes ordinary play. Without this, "New game" inside the daily
+        // would silently stay flagged as the daily — and solving that
+        // random puzzle would wrongly record a daily completion.
+        if (dailyModeDate != null) {
+            val dailySeed =
+                "${dailyModeParams ?: getDefaultParams(launch.whichBackend)}#$dailyModeDate"
+            if (launch.seed != dailySeed) {
+                dailyModeDate = null
+                dailyMode = null
+                dailyModeParams = null
+            }
+        }
         check(progress == null) { "startGame while already starting!" }
         val previousGame: String?
         if (isRedo || launch.needsGenerating) {
@@ -1068,7 +1360,10 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
     }
 
     override fun gameGeneratorSuccess(launch: GameLaunch, previousGame: String?) {
-        runOnUiThread { startGameConfirmed(launch, previousGame) }
+        runOnUiThread {
+            generationInProgress = null
+            startGameConfirmed(launch, previousGame)
+        }
     }
 
     override fun gameGeneratorFailure(e: Exception, launch: GameLaunch) {
@@ -1086,15 +1381,19 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
 
     private fun hasState(backend: BackendName): Boolean =
         state.run {
-            contains(SAVED_GAME_PREFIX + backend)
-                || contains(SAVED_COMPLETED_PREFIX + backend)
-                || contains(LAST_PARAMS_PREFIX + backend)
+            contains(SAVED_GAME_PREFIX + slotKey(backend))
+                || contains(SAVED_COMPLETED_PREFIX + slotKey(backend))
+                || (playlistName == null && contains(LAST_PARAMS_PREFIX + backend))
         }
 
     private fun startGameConfirmed(launch: GameLaunch, previousGame: String?) {
         check(!(launch.saved == null && launch.gameID == null)) { "startGameConfirmed with un-generated game" }
         val changingGame = previousGame == null || startingBackend !== identifyBackend(previousGame)
-        undoToGame = if (previousGame != null && !changingGame && previousGame != launch.saved) {
+        val suppressUndo = suppressUndoToGameOnce
+        suppressUndoToGameOnce = false
+        undoToGame = if (previousGame != null && !changingGame && previousGame != launch.saved
+            && !suppressUndo
+        ) {
             previousGame
         } else {
             null
@@ -1113,17 +1412,27 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         gameView.keysHandled = 0
         everCompleted = false
         reshowCompletion = null
-        if (launch.saved != null) {
+        if (launch.saved != null && !launch.generated) {
             // Reloading a saved game: pick up the timer where it left off.
             restoreSolveTimer()
         } else {
+            // Fresh game: start from zero. (Freshly generated launches
+            // carry a save string too, so `saved != null` alone can't
+            // tell them apart from a resume — that's what `generated` is
+            // for. Without it, a new game resumed the previous game's
+            // saved time instead of resetting.)
             resetSolveTimer()
         }
         val currentParams = orientGameType(currentBackend, gameEngine.currentParams!!)
         refreshPresets(currentParams)
         gameView.setDragModeFor(currentBackend)
         title = currentBackend!!.displayName
-        supportActionBar?.title = currentBackend!!.title
+        // Daily indicator: the toolbar reads "Loopy · Daily" in daily mode
+        // and plain "Loopy" in ordinary play, so the mode is always visible.
+        // (The activity title stays plain so "How to play" menus read right.)
+        supportActionBar?.title = if (inDailyMode())
+            "${currentBackend!!.title} · ${getString(R.string.daily)}"
+        else currentBackend!!.title
         val flags = gameEngine.uiVisibility
         changedState(
             flags and UIVisibility.UNDO.value > 0,
@@ -1188,10 +1497,14 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         val cursor =
             contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null, null)
         cursor?.use {
-            it.moveToFirst()
+            if (!it.moveToFirst()) return
             val sizeIndex = it.getColumnIndex(OpenableColumns.SIZE)
-            if (it.isNull(sizeIndex)) return
-            require(it.getInt(sizeIndex) <= MAX_SAVE_SIZE) { getString(R.string.file_too_big) }
+            // A provider isn't required to expose SIZE: getColumnIndex
+            // then returns -1, and isNull(-1) throws an exception type
+            // the call site doesn't catch. Unknown size is fine — the
+            // read itself is capped as a backstop.
+            if (sizeIndex < 0 || it.isNull(sizeIndex)) return
+            require(it.getLong(sizeIndex) <= MAX_SAVE_SIZE) { getString(R.string.file_too_big) }
         }
     }
 
@@ -1214,14 +1527,37 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         super.onPause()
     }
 
+    /** True for a launch whose URI names only a puzzle (no params/game ID in it). */
+    private fun isBackendOnlyLaunch(launch: Intent): Boolean {
+        val u = launch.data ?: return false
+        return OUR_SCHEME == u.scheme && !u.schemeSpecificPart.contains(":")
+    }
+
     override fun onResume() {
         super.onResume()
         resumeSolveTimer()
-        appStartIntentOnResume?.let {
-            onNewIntent(it)
+        appStartIntentOnResume?.let { launch ->
             appStartIntentOnResume = null
+            if (restoredInstance && !inDailyLaunch(launch) && !isBackendOnlyLaunch(launch)
+                && resumeSavedGame()
+            ) {
+                // This instance is a recreate (e.g. a theme flip mid-game),
+                // not a fresh launch. Replaying a board-specific intent
+                // (params URI, saved-game extra, content URI) would generate
+                // or reload a fresh board and lose the one in progress;
+                // save() already wrote that board to the save slot on pause,
+                // so resume it instead. Daily and backend-only launches
+                // replay safely (attempt slot / save slot) and keep the
+                // normal path above.
+                Log.d(TAG, "recreate restore; resumed saved game instead of replaying launch")
+            } else {
+                onNewIntent(launch)
+            }
         }
     }
+
+    private fun inDailyLaunch(launch: Intent): Boolean =
+        launch.getStringExtra(EXTRA_DAILY_DATE) != null
 
     override fun onDestroy() {
         stopGameGeneration()
@@ -1437,12 +1773,73 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
     private var reshowCompletion: (() -> Unit)? = null
 
     private fun completedInternal() {
+        // Stats record on a board's first completion only. The engine
+        // reports completion on every transition into the solved state, so
+        // undoing the last move and solving again re-enters this function;
+        // ungated, the solve count and total time below would record the
+        // same solve twice. (The best time escapes by luck: the first
+        // final time sticks, so the re-run's "is it better?" check fails.)
+        // The completion dialog further down still shows on every solve —
+        // only the recording is once-per-board, matching the daily's
+        // "first completion wins" rule.
+        val firstCompletion = !everCompleted
         everCompleted = true
         stopSolveTimer()
+        // TalkBack: announce the solve. The completion dialog can be
+        // turned off in Settings (leaving only a toast), and a
+        // screen-reader user otherwise gets no signal the board is
+        // solved. Fires on every completion, like the dialog does.
+        currentBackend?.let { backend ->
+            // Respect "Show solve timer": a player who hid the clock
+            // doesn't want the time read aloud either (Fernando,
+            // 2026-10-29, from the Claude roadmap review).
+            val timePart = if (prefs.getBoolean(SHOW_SOLVE_TIMER_KEY, true)) {
+                solveFinalMillis?.let { " — ${formatSolveTime(it)}" } ?: ""
+            } else ""
+            window.decorView.announceForAccessibility(
+                "${backend.displayName}: ${getString(R.string.COMPLETED)}$timePart"
+            )
+        }
+        // Record a best time only for legit solves: a Show-solution solve
+        // would always "win" in a few seconds and corrupt the record, and
+        // a restarted run would do the same (restart, finish a known
+        // board in seconds). Leaving and resuming is fine.
+        // (No record when the timer never started, e.g. a completed game
+        // reloaded from a save.)
+        val final = solveFinalMillis
+        if (firstCompletion && !usedShowSolution && !usedRestart && final != null) {
+            bestTimeKey()?.let { key ->
+                val best = state.getLong(key, -1)
+                if (best < 0 || final < best) {
+                    state.edit { putLong(key, final) }
+                    lastSolveSetNewBest = true
+                }
+            }
+        }
+        // Per-puzzle totals: every legit solve counts, whatever the
+        // preset (normal, daily, or playlist). Same guards as bests, so
+        // Show-solution and restarted runs never inflate them. These
+        // counters start with this build — the app never tracked solves
+        // or total time before, so there is nothing to backfill from.
+        val backend = currentBackend
+        if (firstCompletion && !usedShowSolution && !usedRestart && final != null && backend != null) {
+            state.edit {
+                val countKey = SOLVE_COUNT_PREFIX + backend
+                putLong(countKey, state.getLong(countKey, 0) + 1)
+                val timeKey = TOTAL_TIME_PREFIX + backend
+                putLong(timeKey, state.getLong(timeKey, 0) + final)
+            }
+        }
         // Daily puzzle: remember today's completion (first completion wins).
-        dailyModeDate?.let { date ->
-            solveFinalMillis?.let { final ->
-                DailyPuzzle.recordCompletion(this, date, final)
+        // Show-solution solves never record: the daily hides the solve item
+        // entirely, and this guard covers any other path to a solved board.
+        if (firstCompletion && !usedShowSolution) {
+            dailyModeDate?.let { date ->
+                solveFinalMillis?.let { final ->
+                    DailyPuzzle.recordCompletion(
+                        this, date, DailyPuzzle.Mode.fromString(dailyMode), final
+                    )
+                }
             }
         }
         if (inPlaylistMode() && playlistIndex == playlistGames.size - 1) {
@@ -1470,9 +1867,19 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         d.window!!.attributes = lp
         val dialogBinding = CompletedDialogBinding.inflate(LayoutInflater.from(d.context))
         d.setContentView(dialogBinding.root)
-        dialogBinding.completedTitle.text = solveFinalMillis?.let { final ->
-            "$titleText · ${formatSolveTime(final)}"
-        } ?: titleText
+        dialogBinding.completedTitle.text = if (prefs.getBoolean(SHOW_SOLVE_TIMER_KEY, true)) {
+            solveFinalMillis?.let { final ->
+                "$titleText · ${formatSolveTime(final)}"
+            } ?: titleText
+        } else {
+            titleText
+        }
+        // The tell: only a solve that actually set a new best for its
+        // preset gets the line (first-ever best counts). Show-solution
+        // and restarted runs never set the flag, and it shows even with
+        // the timer display off — bests record underneath either way.
+        dialogBinding.completedNewBest.visibility =
+            if (lastSolveSetNewBest) View.VISIBLE else View.GONE
         // An accidental tap outside must not lose the dialog (and the Next button in playlists).
         d.setCanceledOnTouchOutside(false)
         darkenTopDrawable(dialogBinding.newGame)
@@ -1511,27 +1918,56 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         d.show()
     }
 
+    /**
+     * Writes the current playlist position back into the activity's intent,
+     * so a recreate (e.g. a theme flip) resumes the playlist where it is
+     * instead of replaying the original launch at index 0.
+     */
+    private fun syncPlaylistIntent() {
+        val backend = playlistGames.getOrNull(playlistIndex)?.let { byLowerCase(it) } ?: return
+        intent.putExtra(EXTRA_PLAYLIST_INDEX, playlistIndex)
+        intent.data = Uri.fromParts(OUR_SCHEME, backend.toString(), null)
+        setIntent(intent)
+        // Keep the playlist's saved run at the same position, so the
+        // Playlists screen can offer to continue from here after a leave.
+        playlistName?.let {
+            PlaylistStore.saveSession(this, it, playlistGames, playlistIndex)
+        }
+    }
+
     /** Starts the next puzzle in the playlist; the solve timer resets via startGame. */
     private fun advancePlaylist() {
         val next = playlistIndex + 1
         if (next !in playlistGames.indices) return
         val backend = byLowerCase(playlistGames[next]) ?: return
         playlistIndex = next
+        syncPlaylistIntent()
         startGame(toGenerateFromChooser(backend))
     }
 
     private fun showPlaylistCompleteDialog() {
         val name = playlistName ?: getString(R.string.playlists)
-        val time = solveFinalMillis?.let { "\n" + getString(R.string.playlist_final_time, formatSolveTime(it)) } ?: ""
+        val time = if (prefs.getBoolean(SHOW_SOLVE_TIMER_KEY, true)) {
+            solveFinalMillis?.let { "\n" + getString(R.string.playlist_final_time, formatSolveTime(it)) } ?: ""
+        } else {
+            ""
+        }
         AlertDialog.Builder(this)
             .setTitle(R.string.playlist_complete)
             .setMessage(getString(R.string.playlist_complete_message, name) + time)
             .setPositiveButton(R.string.play_again) { _, _ ->
                 val first = playlistGames.firstOrNull()?.let { byLowerCase(it) } ?: return@setPositiveButton
                 playlistIndex = 0
+                syncPlaylistIntent()
                 startGame(toGenerateFromChooser(first))
             }
-            .setNegativeButton(R.string.done) { _, _ -> finish() }
+            .setNegativeButton(R.string.done) { _, _ ->
+                // The run is finished; the Playlists screen stops offering it.
+                playlistName?.let {
+                    PlaylistStore.clearSession(this@GamePlay, it, playlistGames)
+                }
+                finish()
+            }
             .setCancelable(false)
             .show()
     }
@@ -1544,10 +1980,14 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
 
     @UsedByJNI
     override fun setStatus(status: String) {
+        // Strip the engine's [M:SS] timer prefix (see ENGINE_TIMER_PREFIX):
+        // it feeds both the status bar and the completion dialogs that
+        // copy the status text, so stripping here hides it everywhere.
+        val clean = ENGINE_TIMER_PREFIX.replaceFirst(status, "")
         statusBar.apply {
-            text = status.ifEmpty { " " } // Ensure consistent height
+            text = clean.ifEmpty { " " } // Ensure consistent height
             importantForAccessibility =
-                if (status.isEmpty()) View.IMPORTANT_FOR_ACCESSIBILITY_NO else View.IMPORTANT_FOR_ACCESSIBILITY_YES
+                if (clean.isEmpty()) View.IMPORTANT_FOR_ACCESSIBILITY_NO else View.IMPORTANT_FOR_ACCESSIBILITY_YES
         }
     }
 
@@ -1602,6 +2042,8 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
             }
             FULLSCREEN_KEY -> applyFullscreen()
             STAY_AWAKE_KEY -> applyStayAwake()
+            SHOW_SOLVE_TIMER_KEY -> applySolveTimerVisibility()
+            SHOW_BEST_TIME_KEY -> updateSolveTimerDisplay()
             LIMIT_DPI_KEY -> applyLimitDPI(true)
             ORIENTATION_KEY -> applyOrientation()
             UNDO_REDO_KBD_KEY -> applyUndoRedoKbd()
@@ -1732,12 +2174,44 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         const val EXTRA_PLAYLIST_NAME = "playlist_name"
         const val EXTRA_PLAYLIST_GAMES = "playlist_games"
         const val EXTRA_PLAYLIST_INDEX = "playlist_index"
+        const val EXTRA_PLAYLIST_FRESH = "playlist_fresh"
         /** Intent extra carrying the daily puzzle date ("2026-10-21"); also puts GamePlay in daily mode. */
         const val EXTRA_DAILY_DATE = "daily_date"
+        /** Intent extra carrying the daily mode ("easy"/"hard"); only meaningful with EXTRA_DAILY_DATE. */
+        const val EXTRA_DAILY_MODE = "daily_mode"
+        /** Intent extra carrying the daily mode's preset params; defaults to the backend default. */
+        const val EXTRA_DAILY_PARAMS = "daily_params"
         private val DIMENSIONS = Pattern.compile("(\\d+)( ?)x\\2(\\d+)(.*)")
+        /**
+         * Storage key for a puzzle preset's best time, shared with the
+         * stats screen's per-puzzle tab, which looks bests up by key.
+         * Any W×H dimensions are sorted ascending first: the app flips
+         * w/h on rotate, so without this the portrait and landscape
+         * orientations of the same preset would keep separate records.
+         */
+        fun bestTimeKeyFor(backend: BackendName, params: String): String =
+            BEST_TIME_PREFIX + backend + "_" + normalizeBestKeyParams(params)
+
+        private fun normalizeBestKeyParams(params: String): String {
+            val matcher = DIMENSIONS.matcher(params)
+            if (!matcher.matches()) return params
+            val a = matcher.group(1)!!.toInt()
+            val b = matcher.group(3)!!.toInt()
+            if (a <= b) return params
+            val sep = matcher.group(2)!!
+            return "$b$sep" + "x" + sep + "$a" + matcher.group(4)!!
+        }
+
         const val MAX_SAVE_SIZE: Long = 1000000 // 1MB; we only have 16MB of heap
         private const val TIMER_INTERVAL = 20
         private const val SOLVE_TIMER_INTERVAL = 500
+        /**
+         * The engine's own timer prefix on timed games' status text
+         * (Simon's midend_rewrite_statusbar: "[M:SS] ", running from
+         * board load). It disagrees with our solve timer (first move)
+         * and confuses users, so setStatus strips it.
+         */
+        private val ENGINE_TIMER_PREFIX = Regex("^\\[\\d+:\\d{2}] ")
         private const val PREVENT_BACK_AFTER_KEY_PRESS_MILLIS = 600
 
         /** Whether to show data-entry keys, as opposed to undo/redo/swap-L-R which are always shown.

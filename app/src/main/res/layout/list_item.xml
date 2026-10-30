@@ -54,8 +54,8 @@
 	     Long-press on the row still toggles too. -->
 	<ImageButton
 		android:id="@+id/starToggle"
-		android:layout_width="48dip"
-		android:layout_height="48dip"
+		android:layout_width="64dip"
+		android:layout_height="64dip"
 		android:layout_gravity="center_vertical"
 		android:background="?attr/selectableItemBackgroundBorderless"
 		android:contentDescription="@string/star_game"

@@ -193,4 +193,7 @@ include/
 
 # Release signing key — NEVER commit these. Lose them and updates are impossible.
 release.keystore
+debug.keystore
 keystore.properties
+# GitHub 2FA recovery codes — NEVER commit these. They bypass 2FA.
+github-recovery-codes_26_eeo3.txt

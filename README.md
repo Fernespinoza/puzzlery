@@ -1,6 +1,6 @@
-# ST Puzzle Relay
+# Puzzlery
 
-**Simon Tatham's Puzzle Relay — with playlists, dailies, timers, and a random picker.**
+**An accessible daily logic suite • Powered by S. Tatham's engines** — with playlists, dailies, timers, and a random picker.
 
 This is a fork of [chrisboyle/sgtpuzzles](https://github.com/chrisboyle/sgtpuzzles),
 which is [Simon Tatham's Portable Puzzle Collection](https://www.chiark.greenend.org.uk/~sgtatham/puzzles/)
@@ -8,15 +8,11 @@ ported to Android.
 
 ## Screenshots
 
-| Puzzle list | Help submenu (opens upward) |
-|---|---|
-| ![Puzzle list](fastlane/metadata/android/en-US/images/phoneScreenshots/1-puzzle-list-v3.jpg) | ![Help submenu](fastlane/metadata/android/en-US/images/phoneScreenshots/2-help-submenu-v2.jpg) |
-| Random picker | Playlists |
-|---|---|
-| ![Random picker](fastlane/metadata/android/en-US/images/phoneScreenshots/3-random-picker-v2.jpg) | ![Playlists](fastlane/metadata/android/en-US/images/phoneScreenshots/4-playlists-v2.jpg) |
-| Edit playlist | |
-|---|---|
-| ![Edit playlist](fastlane/metadata/android/en-US/images/phoneScreenshots/5-edit-playlist-v2.jpg) | |
+| Puzzle list | Daily puzzle | Stats calendar |
+|---|---|---|
+| ![Puzzle list](fastlane/metadata/android/en-US/images/phoneScreenshots/1-puzzle-list-v4.jpg) | ![Daily puzzle](fastlane/metadata/android/en-US/images/phoneScreenshots/2-daily-dialog-v4.jpg) | ![Stats calendar](fastlane/metadata/android/en-US/images/phoneScreenshots/3-stats-calendar-v4.jpg) |
+| Playlists | Puzzle list (night) | Loopy (night) |
+| ![Playlists](fastlane/metadata/android/en-US/images/phoneScreenshots/4-playlists-v4.jpg) | ![Puzzle list at night](fastlane/metadata/android/en-US/images/phoneScreenshots/6-puzzle-list-night-v4.jpg) | ![Loopy at night](fastlane/metadata/android/en-US/images/phoneScreenshots/7-loopy-gameplay-night-v4.jpg) |
 
 ## Credits and license
 
@@ -30,24 +26,58 @@ The upstream port deliberately stays close to upstream's design; this fork adds
 the things it chose not to:
 
 * A solve timer that starts on your first move and pauses when you leave the
-  puzzle, so time away from the game doesn't count.
-* Named, ordered playlists with Next-on-solve and shuffle.
-* A date-seeded daily puzzle that rotates through the enabled puzzles — everyone
-  gets the same puzzle each day, with per-day completion tracking.
+  puzzle, so time away from the game doesn't count. You can hide the timer
+  (and the best time) in Settings; both are shown by default.
+* Best times per preset, shown next to the timer, with a "New best time for
+  this preset!" note when a solve sets one. A best only counts for a clean
+  run: fresh start to finish, with no Show solution and no restart.
+* Named, ordered playlists with Next-on-solve and shuffle. A run in
+  progress can be continued later — every playlist keeps its own boards —
+  and can be restarted or reshuffled at any time.
+* A date-seeded daily puzzle — everyone gets the same puzzle each day — with
+  Easy and Hard versions, streaks, and per-day completion tracking.
+  Unfinished attempts can be continued later, you can practice either
+  version without affecting the daily record, and Show-solution is hidden
+  during dailies.
+* A stats page: a monthly calendar of daily results with streaks, plus a
+  per-puzzle tab showing your best time on each preset, total solves, and
+  total time spent. The per-puzzle picker uses the same Starred list as the
+  main screen.
 * A random picker that draws from all puzzles or just your favorites
-  (long-press a puzzle on the main screen to star it).
+  (long-press a puzzle on the main screen to star it), picking a random
+  preset too — including "unsolved only" options for chasing 100%.
+* Chooser display modes: names only, names with descriptions, icons only,
+  or icons with names. Solo, Pattern, Mines, and Loopy come starred by
+  default, and the descriptions note the common names players know: Solo
+  aka Sudoku, Pattern aka Nonograms / Picross, Loopy aka Slitherlink.
+* Real light and dark themes that follow your system setting, plus an
+  optional true-black (AMOLED) night mode.
+* The start of TalkBack support: game tiles are named for screen readers
+  in icons-only mode, and solving a puzzle announces the completion (and
+  the time, when the timer is shown). More lands every release on the
+  road to full support in 1.0.
 
-## Current release — v0.3.0
+## Current release — v0.4.0
+
+The app is now **Puzzlery** — this release is the UI overhaul:
 
 - All 40 upstream puzzles, with their original settings
-- Solve timer — starts on your first move, pauses when you leave
-- Named playlists with next-on-solve and shuffle
-- Date-seeded daily puzzle, the same for everyone
-- Random picker — all puzzles or just your starred favorites
-- "Show solution" completes the puzzle properly: solved menu, timer
-  stop, playlist advance
-- Star toggle button on the "Show descriptions" game chooser — tap the
-  star to star or unstar a puzzle (long-press still works too)
+- Daily puzzle redesigned — Easy (the simplest preset) and Hard cards
+  with streaks, resumable attempts, and Practice; "Show solution" is
+  hidden in daily mode
+- Solve timer — starts on your first move, pauses when you leave — with
+  per-preset best times for clean runs; the timer and best-time
+  displays can be hidden in Settings
+- Stats page — a monthly calendar of daily results with streaks, plus
+  a per-puzzle tab with best times, solves, and time spent
+- Playlists with Continue — each playlist keeps its own boards — plus
+  Restart and Shuffle
+- Chooser display modes — names only, descriptions, icons only, or
+  icons with names; Solo, Pattern, Mines, and Loopy starred by default
+- Real light and dark themes, plus an optional true-black (AMOLED)
+  night mode
+- TalkBack foundation — named tiles in icons-only mode and a spoken
+  completion announcement
 
 See [ROADMAP.md](ROADMAP.md) for what's next.
 
@@ -126,4 +156,4 @@ separate checkout (see above).
 Happy hacking!
 
 --
-ST Puzzle Relay
+Puzzlery

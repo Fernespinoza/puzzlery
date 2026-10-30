@@ -4,16 +4,23 @@
     <color name="game_background">#ffcccccc</color>
     <!-- DO NOT CHANGE THIS IN NIGHT MODE, see issue #585 -->
     <color name="fake_game_background_to_derive_colours_from">#ffcccccc</color>
-    <color name="keyboard_background">#ff272d30</color>
-    <color name="key_background_border">#ff3c474c</color>
-    <color name="key_background_on">#ff5d6f76</color>
-    <color name="keyboard_foreground">#ffd4d5d6</color>
-    <color name="keyboard_foreground_disabled">#ff6c7072</color>
-    <color name="key_background_pressed">#ff515b5f</color>
-    <color name="key_background_checked">#ff5d6f76</color>
+    <color name="keyboard_background">#ffc9ced3</color>
+    <color name="key_background_border">#ffeceff1</color>
+    <color name="key_background_on">#ff90a4ae</color>
+    <color name="keyboard_foreground">#ff1c1f22</color>
+    <color name="keyboard_foreground_disabled">#ff8a8f94</color>
+    <color name="key_background_pressed">#ffb0bec5</color>
+    <color name="key_background_checked">#ff90a4ae</color>
     <color name="status_bar_text">#ff000000</color>
-    <color name="chooser_section_background">#ff272727</color>
+    <color name="chooser_section_background">#ffe2e8f0</color>
+    <color name="stats_touched_background">#ffd1d5db</color>
+    <!-- Light (day) theme base colours; night keeps AppCompat defaults. -->
+    <color name="day_base_background">#fff1f3f5</color>
+    <color name="day_text_primary">#ff1a1d20</color>
+    <color name="day_text_secondary">#ff6c757d</color>
     <color name="chooser_current_background">#99114411</color>
     <color name="action_bar_and_title_bar">#ff212121</color>
     <color name="webview_background">#ffffffff</color>
+    <color name="amoled_black">#ff000000</color>
+    <color name="amoled_raised">#ff0d0d0d</color>
 </resources>

@@ -23,14 +23,15 @@ chris@boyle.name and I'll be happy to include it in future versions.
 
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- About box -->
-    <string name="about_content">"ST Puzzle Relay
+    <string name="about_content">"Puzzlery
+An accessible daily logic suite • Powered by S. Tatham's engines
 Based on Simon Tatham’s Portable Puzzle Collection
 Version %s"</string>
     <string name="copy_version_number">Copy version number to clipboard</string>
     <!-- Things used by the Android front-end only -->
-    <string name="app_name">ST Puzzle Relay</string>
-    <string name="missing_game_generator">ST Puzzle Relay is missing a required file! Try reinstalling the app</string>
-    <string name="website_url" translatable="false">https://github.com/NandoMango702/st-puzzle-relay</string>
+    <string name="app_name">Puzzlery</string>
+    <string name="missing_game_generator">Puzzlery is missing a required file! Try reinstalling the app</string>
+    <string name="website_url" translatable="false">https://github.com/Fernespinoza/puzzlery</string>
     <string name="feedback_dialog" tools:ignore="TypographyQuotes"><![CDATA[
 <p><a href="{1}">Report a bug or feature request at GitHub</a></p>
 <p>GitHub allows attachments like screenshots and saved games, but requires creating an account.</p>
@@ -105,7 +106,9 @@ Version %s"</string>
     <string name="gameChooser">Game chooser</string>
     <string name="chooserStyle">Game chooser style</string>
     <string name="chooserStyleList">Show descriptions</string>
+    <string name="chooserStyleNames">Names only</string>
     <string name="chooserStyleGrid">Icons only (compact)</string>
+    <string name="chooserStyleGridNames">Icons with names</string>
     <string name="thisGame">This game</string>
     <string name="allGames">All games</string>
     <string name="flashTypeNote">See also “Display and input” below to disable victory flash in all games</string>
@@ -160,6 +163,13 @@ Version %s"</string>
     <string name="patternShowLengthsSummary">Show number of squares selected</string-->
     <string name="controlsReminders">Show reminders of controls</string>
     <string name="controlsRemindersSummary">E.g. explain long-press when starting a game</string>
+    <string name="showSolveTimer">Show solve timer</string>
+    <string name="showSolveTimerSummary">Show the ticking clock while you play, and your final time on the completed screen</string>
+    <string name="showBestTime">Show best time</string>
+    <string name="showBestTimeSummary">Show your fastest time for this puzzle next to the solve clock</string>
+    <string name="amoledBlack">True black (AMOLED)</string>
+    <string name="amoledBlackSummary">In night mode, use pure black backgrounds instead of dark gray. Saves power on OLED screens</string>
+    <string name="bestTimeDisplay">Best %1$s</string>
     <!-- These are for the game chooser (detail mode) -->
     <string name="desc_blackbox">Locate the balls inside the box by firing lasers and observing how they are deflected or absorbed.</string>
     <string name="desc_bridges">Connect the islands with the given bridge counts so no bridges are crossing.</string>
@@ -282,6 +292,7 @@ Version %s"</string>
     <string name="Barrier_probability_may_not_be_negative">Barrier probability may not be negative</string>
     <string name="Barrier_probability_may_not_be_greater_than_1">Barrier probability may not be greater than 1</string>
     <string name="COMPLETED">COMPLETED!</string>
+    <string name="completed_new_best">New best time for this preset!</string>
     <string name="DEAD">DEAD!</string>
     <string name="Deaths_X" formatted="false">Deaths: %d</string>
     <string name="Difficulty">Difficulty</string>
@@ -632,12 +643,56 @@ Version %s"</string>
     <string name="daily">Daily</string>
     <string name="daily_complete_title">Daily puzzle · %1$s</string>
     <string name="daily_complete_message">Already solved today in %1$s.</string>
+    <string name="daily_today_title">Today\'s puzzle is %1$s</string>
+    <string name="daily_easy">Easy</string>
+    <string name="daily_hard">Hard</string>
+    <string name="daily_attempt">Attempt</string>
+    <string name="daily_continue_attempt">Continue attempt</string>
+    <string name="daily_practice">Practice</string>
+    <string name="daily_leave_to_practice">Leave daily to practice</string>
+    <string name="daily_streak">%1$d day streak</string>
+    <string name="daily_no_streak">No streak yet</string>
+    <string name="stats">Stats</string>
+    <string name="stats_title">Stats</string>
+    <string name="stats_mode_summary">%1$s — streak %2$d (longest %3$d) · %4$d solved</string>
+    <string name="stats_solved_in">Solved in %1$s</string>
+    <string name="daily_about_button">About</string>
+    <string name="daily_about_title">About dailies</string>
+    <string name="daily_about_text">How dailies work\n\nEvery day brings a new puzzle, rotating through all 40 puzzles. Everyone gets the same puzzle on the same day.\n\nTwo difficulties: Easy is the default size, Hard is the largest size. Each has its own streak.\n\nShow solution is hidden for dailies — either you solve it or you don\'t. Every recorded daily solve is a legit solve.\n\nAttempt plays today\'s puzzle for that difficulty. If you leave mid-attempt, it saves — come back and Continue picks up exactly where you left off. Attempts from earlier months are dropped.\n\nPlay again replays a solved daily for fun; your first solve stands.\n\nPractice plays the difficulty\'s preset as an ordinary game — a fresh random puzzle, solution available, nothing recorded. Good for warming up.\n\nStreaks count consecutive days with a solve, per difficulty. Miss a day and the streak resets.\n\nTap Stats for the calendar — it has its own explanation there.</string>
+    <string name="stats_about">About stats</string>
+    <string name="stats_about_title">About stats</string>
+    <string name="stats_about_text">The header shows each difficulty\'s current streak, longest streak, and total days solved.\n\nThe calendar\n\nEach day\'s left half is Easy and right half is Hard. A check means solved, an arrow means in progress, blank means not started. A gold border means both solved. A played day gets a shaded tile; an unplayed day stays flat and dim. A cyan ring marks today, a border marks the selected day. Tap any day for details.\n\nOnly the current month is shown.\n\nYou can continue an in-progress attempt from an earlier day this month; finishing it counts for that day. Solved and untouched past days are view-only.\n\nThe Per puzzle tab\n\nChoose a puzzle to see your best time on each preset, and which presets you haven\'t completed yet. Its Starred section is the same list as the main menu\'s Starred section.</string>
+    <string name="stats_in_progress">In progress</string>
+    <string name="stats_not_started">Not started</string>
+    <string name="stats_tab_daily">Daily</string>
+    <string name="stats_tab_per_puzzle">Per puzzle</string>
+    <string name="stats_picker_title">Choose a puzzle</string>
+    <string name="stats_picker_starred">Starred</string>
+    <string name="stats_picker_others">Others</string>
+    <string name="stats_puzzle_picker_label">Puzzle: %1$s</string>
+    <string name="stats_per_puzzle_starred_note">Starred puzzles are the same list as the main menu\'s Starred section.</string>
+    <string name="stats_preset_not_completed">Not completed</string>
+    <string name="stats_preset_default">Default</string>
+    <string name="stats_presets_unavailable">Couldn\'t load presets for this puzzle.</string>
+    <string name="stats_summary_title">Summary</string>
+    <string name="stats_summary_avg_best">Avg best time</string>
+    <string name="stats_summary_solves">Total solves</string>
+    <string name="stats_summary_cleared">Presets cleared</string>
+    <string name="stats_summary_time">Time spent</string>
+    <string name="stats_preset_play">Play %1$s: %2$s</string>
+    <string name="stats_summary_cleared_value">%1$d/%2$d (%3$d%%)</string>
+    <string name="daily_not_solved">Not solved yet</string>
+    <string name="daily_solved_in">Solved today in %1$s</string>
 
     <!-- Random picker -->
     <string name="random_picker">Random</string>
     <string name="random_from_all">From all</string>
     <string name="random_from_favorites">From favorites</string>
     <string name="random_no_favorites">Star some puzzles first — long-press a puzzle to star it.</string>
+    <string name="random_all_unsolved">From all unsolved</string>
+    <string name="random_favorites_unsolved">From favorites unsolved</string>
+    <string name="random_all_unsolved_none">All presets completed!</string>
+    <string name="random_favorites_unsolved_none">All favorites presets completed!</string>
 
     <string name="new_playlist">New playlist</string>
     <string name="edit_playlist_title">Edit playlist</string>
@@ -656,6 +711,7 @@ Version %s"</string>
     <string name="playlist_complete_message">You finished “%1$s”!</string>
     <string name="playlist_final_time">Last puzzle: %1$s</string>
     <string name="delete_playlist_confirm">Delete the playlist “%1$s”?</string>
+    <string name="playlist_continue">Continue</string>
     <string name="playlist_name_required">Give the playlist a name first.</string>
     <string name="playlist_pick_at_least_one">Pick at least one puzzle.</string>
     <plurals name="playlist_puzzle_count">
