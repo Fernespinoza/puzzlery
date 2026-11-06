@@ -11,6 +11,7 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
 import android.net.Uri
 import android.os.Bundle
+import androidx.preference.PreferenceManager
 import android.view.Gravity
 import android.view.MenuItem
 import android.view.View
@@ -33,6 +34,8 @@ import com.google.android.material.tabs.TabLayout
 import io.github.nandomango702.stpuzzlerelay.NightModeHelper.ActivityWithNightMode
 import io.github.nandomango702.stpuzzlerelay.backend.BackendName
 import io.github.nandomango702.stpuzzlerelay.backend.GameEngineImpl
+import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.DAILY_COMPLETE_PREFIX
+import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SHOW_COMPLETION_BADGES_KEY
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.STATE_PREFS_NAME
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SOLVE_COUNT_PREFIX
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.TOTAL_TIME_PREFIX
@@ -93,6 +96,8 @@ class StatsActivity : ActivityWithNightMode() {
         shownMonth = today.get(Calendar.MONTH)
         buildWeekdayHeader()
         binding.statsAboutButton.setOnClickListener { showStatsAbout() }
+        binding.statsPrevMonth.setOnClickListener { shiftMonth(-1) }
+        binding.statsNextMonth.setOnClickListener { shiftMonth(1) }
         selectedDate = DailyPuzzle.todayString()
         buildMonth()
         showDetail(selectedDate!!)
@@ -153,6 +158,34 @@ class StatsActivity : ActivityWithNightMode() {
      * The note under the picker says so.
      */
     private fun showPuzzlePicker() {
+        // Completion badges in the picker (Fernando, 2026-11-03):
+        // the same badge the main menu shows — same fraction
+        // (top-level presets with a legit best over all top-level
+        // presets, the engine default standing in for preset-less
+        // puzzles), same toggle, same spoken labels.
+        val state = getSharedPreferences(STATE_PREFS_NAME, MODE_PRIVATE)
+        val showBadges = PreferenceManager.getDefaultSharedPreferences(this)
+            .getBoolean(SHOW_COMPLETION_BADGES_KEY, true)
+        val badges = mutableMapOf<BackendName, Pair<Int, Int>>()
+        if (showBadges) {
+            for (backend in BackendName.all) {
+                try {
+                    val paramsList = GameEngineImpl.getPresetsForBackend(backend)
+                        .filter { it.params != null }.map { it.params!! }
+                        .ifEmpty {
+                            listOfNotNull(GameEngineImpl.getDefaultParams(backend))
+                        }
+                    val solved = paramsList.count {
+                        state.getLong(GamePlay.bestTimeKeyFor(backend, it), -1) >= 0
+                    }
+                    if (paramsList.isNotEmpty() && solved > 0) {
+                        badges[backend] = solved to paramsList.size
+                    }
+                } catch (e: Exception) {
+                    // A puzzle whose presets can't be read gets no badge.
+                }
+            }
+        }
         val (starred, others) =
             BackendName.all.partition { GameChooser.isStarred(this, it) }
         val items = mutableListOf<PickerItem>()
@@ -194,7 +227,35 @@ class StatsActivity : ActivityWithNightMode() {
                             text = item.backend.displayName
                             textSize = 16f
                             setPadding(dp(12), 0, 0, 0)
+                            layoutParams = LinearLayout.LayoutParams(
+                                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f,
+                            )
                         })
+                        badges[item.backend]?.let { (solved, total) ->
+                            addView(ImageView(this@StatsActivity).apply {
+                                setImageDrawable(
+                                    ClearedBadgeDrawable(
+                                        solved.toFloat() / total,
+                                        solved == total,
+                                    )
+                                )
+                                importantForAccessibility =
+                                    View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                                layoutParams =
+                                    LinearLayout.LayoutParams(dp(24), dp(24))
+                            })
+                            contentDescription = if (solved == total) {
+                                getString(
+                                    R.string.badge_cleared_label,
+                                    item.backend.displayName,
+                                )
+                            } else {
+                                getString(
+                                    R.string.badge_progress_label,
+                                    item.backend.displayName, solved, total,
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -258,6 +319,16 @@ class StatsActivity : ActivityWithNightMode() {
             return
         }
         for ((title, params, best) in rows) list.addView(presetRow(title, params, best))
+        // TalkBack support tag: what Describe board can do for this
+        // puzzle, once its level has been verified on-device.
+        TalkBackSupport.phrase(this, selectedPuzzle)?.let { phrase ->
+            list.addView(TextView(this).apply {
+                text = getString(R.string.stats_tb_support, phrase)
+                textSize = 14f
+                alpha = 0.7f
+                setPadding(0, dp(16), 0, 0)
+            })
+        }
         val avgBest = if (bestMillis.isNotEmpty()) {
             DailyPuzzle.formatTime(bestMillis.average().toLong())
         } else {
@@ -426,6 +497,7 @@ class StatsActivity : ActivityWithNightMode() {
     private fun launchPreset(params: String) {
         startActivity(Intent(this, GamePlay::class.java).apply {
             data = Uri.fromParts(GamePlay.OUR_SCHEME, "$selectedPuzzle:$params", null)
+            putExtra(GamePlay.EXTRA_ORIGIN, GamePlay.ORIGIN_STATS)
         })
     }
 
@@ -469,6 +541,11 @@ class StatsActivity : ActivityWithNightMode() {
         val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
         binding.statsMonthTitle.text =
             SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time)
+        // Announce the new month to TalkBack when paging with the
+        // arrows (focus stays on the arrow, so without a live region
+        // the change is silent).
+        binding.statsMonthTitle.accessibilityLiveRegion =
+            View.ACCESSIBILITY_LIVE_REGION_POLITE
         val grid = binding.statsGrid
         grid.removeAllViews()
         repeat(offset) { grid.addView(Space(this).apply { layoutParams = equalColumnParams() }) }
@@ -479,6 +556,73 @@ class StatsActivity : ActivityWithNightMode() {
         }
         val trailing = (7 - (offset + daysInMonth) % 7) % 7
         repeat(trailing) { grid.addView(Space(this).apply { layoutParams = equalColumnParams() }) }
+        updateMonthNav()
+    }
+
+    /** Pages the calendar one month back or forward, then re-renders. */
+    private fun shiftMonth(delta: Int) {
+        val cal = Calendar.getInstance()
+        cal.set(shownYear, shownMonth, 1)
+        cal.add(Calendar.MONTH, delta)
+        shownYear = cal.get(Calendar.YEAR)
+        shownMonth = cal.get(Calendar.MONTH)
+        // The detail pane describes a day in the month just left;
+        // drop it rather than leave a stale day under the new month.
+        selectedDate = null
+        binding.statsDetailGroup.visibility = View.GONE
+        buildMonth()
+    }
+
+    /**
+     * Month paging bounds: never into the future; backwards at most
+     * to the earlier of the oldest daily record's month or twelve
+     * months ago, so there is always somewhere to page to. Past
+     * months are view-only in practice: their attempt boards were
+     * cleaned up monthly, so no day in them can offer a resume.
+     */
+    private fun updateMonthNav() {
+        val now = Calendar.getInstance()
+        val curYear = now.get(Calendar.YEAR)
+        val curMonth = now.get(Calendar.MONTH)
+        binding.statsNextMonth.isEnabled =
+            shownYear < curYear || (shownYear == curYear && shownMonth < curMonth)
+        val floor = earliestPageableMonth()
+        binding.statsPrevMonth.isEnabled =
+            shownYear > floor.first || (shownYear == floor.first && shownMonth > floor.second)
+    }
+
+    /** (year, month) of the oldest month the calendar may page back to. */
+    private fun earliestPageableMonth(): Pair<Int, Int> {
+        var earliest: String? = null
+        for (key in PreferenceManager.getDefaultSharedPreferences(this).all.keys) {
+            if (!key.startsWith(DAILY_COMPLETE_PREFIX)) continue
+            val date = key.takeLast(10)
+            // Full shape check before the toInt() calls below: a
+            // planted key (e.g. from a doctored backup) whose date
+            // fields are not digits must be skipped, not crash.
+            val wellFormed = date.length == 10 && date[4] == '-' && date[7] == '-' &&
+                date.substring(0, 4).all { it.isDigit() } &&
+                date.substring(5, 7).all { it.isDigit() } &&
+                date.substring(8, 10).all { it.isDigit() }
+            if (!wellFormed) continue
+            val current = earliest
+            if (current == null || date < current) {
+                earliest = date
+            }
+        }
+        val cal = Calendar.getInstance()
+        cal.add(Calendar.MONTH, -12)
+        var floorYear = cal.get(Calendar.YEAR)
+        var floorMonth = cal.get(Calendar.MONTH)
+        if (earliest != null) {
+            val y = earliest.substring(0, 4).toInt()
+            val m = earliest.substring(5, 7).toInt() - 1
+            if (y < floorYear || (y == floorYear && m < floorMonth)) {
+                floorYear = y
+                floorMonth = m
+            }
+        }
+        return floorYear to floorMonth
     }
 
     private fun dayCell(dateStr: String, day: Int): View {
@@ -613,11 +757,17 @@ class StatsActivity : ActivityWithNightMode() {
         } else {
             binding.statsDetailHard.visibility = View.GONE
         }
-        // Play buttons: today always, plus any in-progress day (a past
-        // attempt within this month resumes its board; without a board it
-        // generates that date's puzzle fresh). Solved / untouched past days
-        // stay view-only.
-        if (isToday || easyState.state == ModeState.IN_PROGRESS) {
+        // Play buttons: today always, plus any in-progress day in
+        // the CURRENT month (a past attempt within this month
+        // resumes its board; without a board it generates that
+        // date's puzzle fresh). Solved / untouched past days stay
+        // view-only. The month condition is structural, not just a
+        // comment: past months are view-only even if an old attempt
+        // record somehow exists (e.g. carried in by a backup
+        // import) — the monthly purge is the cleaner, not the guard.
+        val inCurrentMonth =
+            dateStr.substring(0, 7) == DailyPuzzle.todayString().substring(0, 7)
+        if (isToday || (inCurrentMonth && easyState.state == ModeState.IN_PROGRESS)) {
             binding.statsEasyPlay.visibility = View.VISIBLE
             binding.statsEasyPlay.text = playLabel(easyState)
             val easyParams = modes.find { it.first == Mode.EASY }?.second
@@ -629,7 +779,7 @@ class StatsActivity : ActivityWithNightMode() {
         }
         if (hardParams != null) {
             val hardState = DailyPuzzle.dayModeState(this, dateStr, Mode.HARD)
-            if (isToday || hardState.state == ModeState.IN_PROGRESS) {
+            if (isToday || (inCurrentMonth && hardState.state == ModeState.IN_PROGRESS)) {
                 binding.statsHardPlay.visibility = View.VISIBLE
                 binding.statsHardPlay.text = playLabel(hardState)
                 binding.statsHardPlay.setOnClickListener {
@@ -658,6 +808,7 @@ class StatsActivity : ActivityWithNightMode() {
             data = Uri.fromParts(GamePlay.OUR_SCHEME, backend.toString(), null)
             putExtra(GamePlay.EXTRA_DAILY_DATE, dateStr)
             putExtra(GamePlay.EXTRA_DAILY_MODE, mode.name.lowercase())
+            putExtra(GamePlay.EXTRA_ORIGIN, GamePlay.ORIGIN_STATS)
             params?.let { putExtra(GamePlay.EXTRA_DAILY_PARAMS, it) }
         })
     }

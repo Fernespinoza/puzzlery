@@ -7,7 +7,11 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
+import android.content.Intent
 import android.content.SharedPreferences
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.Preference
 import androidx.preference.PreferenceManager
@@ -36,6 +40,10 @@ import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.CATEGORY_THIS
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.LATIN_SHOW_M_KEY
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.LONG_PRESS_TIMEOUT
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.MOUSE_BACK_KEY
+import io.github.nandomango702.stpuzzlerelay.backup.Backup
+import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.CHECK_UPDATES_NOW_KEY
+import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.EXPORT_BACKUP_KEY
+import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.IMPORT_BACKUP_KEY
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.PLACEHOLDER_SEND_FEEDBACK
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.UNEQUAL_SHOW_H_KEY
 
@@ -135,6 +143,112 @@ class PrefsActivity : NightModeHelper.ActivityWithNightMode(),
 
     class PrefsMainFragment : CurrentGamePrefFragment() {
 
+        /** Save-picker for the backup export (Storage Access Framework — no storage permission). */
+        private val exportBackupLauncher =
+            registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+                if (uri == null) return@registerForActivityResult // picker cancelled
+                val context = requireContext()
+                val ok = runCatching {
+                    // Build the JSON BEFORE opening the stream: a
+                    // build failure must not leave a 0-byte file
+                    // behind. "wt" truncates — plain "w" is not
+                    // guaranteed to on every provider, and a leftover
+                    // tail would corrupt the backup.
+                    val json = Backup.buildExport(context).toString(2)
+                    context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
+                        out.write(json.toByteArray(Charsets.UTF_8))
+                    } ?: error("no output stream")
+                }.isSuccess
+                Toast.makeText(
+                    context,
+                    if (ok) R.string.backup_saved else R.string.backup_save_failed,
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+
+        /** Open-picker for the backup import. Any file type may be picked;
+         *  validation (Backup.parseImport) is the real gate. */
+        private val importBackupLauncher =
+            registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                if (uri == null) return@registerForActivityResult // picker cancelled
+                val context = requireContext()
+                val text = runCatching {
+                    // Bounded read: the picker accepts any file, and
+                    // a real backup is tens of KB — refuse to slurp
+                    // an unbounded one into memory.
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        val buf = java.io.ByteArrayOutputStream()
+                        val chunk = ByteArray(64 * 1024)
+                        while (true) {
+                            val n = input.read(chunk)
+                            if (n < 0) break
+                            buf.write(chunk, 0, n)
+                            if (buf.size() > Backup.MAX_IMPORT_BYTES) {
+                                error("backup file too large")
+                            }
+                        }
+                        buf.toString(Charsets.UTF_8.name())
+                    }
+                }.getOrNull()
+                if (text == null) {
+                    Toast.makeText(context, R.string.backup_read_failed, Toast.LENGTH_SHORT).show()
+                    return@registerForActivityResult
+                }
+                when (val parsed = Backup.parseImport(context, text)) {
+                    is Backup.ImportParse.Failure -> Toast.makeText(
+                        context,
+                        when (parsed.reason) {
+                            Backup.ImportFailure.NOT_JSON, Backup.ImportFailure.WRONG_APP ->
+                                R.string.backup_not_puzzlery
+                            Backup.ImportFailure.SCHEMA_TOO_NEW -> R.string.backup_too_new
+                            Backup.ImportFailure.MALFORMED -> R.string.backup_damaged
+                        },
+                        Toast.LENGTH_LONG,
+                    ).show()
+                    is Backup.ImportParse.Success -> confirmImport(parsed.backup)
+                }
+            }
+
+        /** The replace-wholesale warning, showing which backup is about to land. */
+        private fun confirmImport(backup: Backup.ParsedBackup) {
+            val activity = requireActivity()
+            var message = getString(
+                R.string.import_confirm_message,
+                backup.exportedAt.ifEmpty { "—" },
+                backup.appVersion.ifEmpty { "—" },
+            )
+            // Wrong-typed entries the filter dropped (Claude review
+            // round 2: drops must not be silent — the player should
+            // know part of the file didn't make it).
+            if (backup.dropped > 0) {
+                message += "\n\n" + resources.getQuantityString(
+                    R.plurals.import_dropped_entries, backup.dropped, backup.dropped,
+                )
+            }
+            AlertDialog.Builder(activity)
+                .setTitle(R.string.import_confirm_title)
+                .setMessage(message)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.import_action) { _, _ ->
+                    if (Backup.applyImport(activity, backup)) {
+                        Toast.makeText(
+                            activity.applicationContext, R.string.backup_imported, Toast.LENGTH_SHORT,
+                        ).show()
+                        // Clean restart into the chooser: every screen re-reads
+                        // the imported state, nothing stale survives in memory.
+                        startActivity(
+                            Intent(activity, GameChooser::class.java).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            }
+                        )
+                        activity.finish()
+                    } else {
+                        Toast.makeText(activity, R.string.backup_import_failed, Toast.LENGTH_LONG).show()
+                    }
+                }
+                .show()
+        }
+
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             addPreferencesFromResource(R.xml.preferences)
             val backend = byLowerCase(requireActivity().intent.getStringExtra(BACKEND_EXTRA))
@@ -154,6 +268,18 @@ class PrefsActivity : NightModeHelper.ActivityWithNightMode(),
             }
             requirePref(PLACEHOLDER_SEND_FEEDBACK).setOnPreferenceClickListener {
                 sendFeedbackDialog(requireContext())
+                true
+            }
+            requirePref(CHECK_UPDATES_NOW_KEY).setOnPreferenceClickListener {
+                UpdateChecker.checkNow(requireActivity())
+                true
+            }
+            requirePref(EXPORT_BACKUP_KEY).setOnPreferenceClickListener {
+                exportBackupLauncher.launch(Backup.suggestedFileName())
+                true
+            }
+            requirePref(IMPORT_BACKUP_KEY).setOnPreferenceClickListener {
+                importBackupLauncher.launch(arrayOf("*/*"))
                 true
             }
         }

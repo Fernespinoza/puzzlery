@@ -125,6 +125,7 @@ class PlaylistEditorActivity : NightModeHelper.ActivityWithNightMode() {
             val backend = games[position]
             val sourceName = backend.toString()
             val order = selectedOrder.indexOf(sourceName)
+            row.gameIcon.setImageDrawable(backend.icon(this@PlaylistEditorActivity))
             row.gameName.text = backend.displayName
             row.gameCheckbox.isChecked = order >= 0
             row.gameOrder.text = if (order >= 0) "${order + 1}" else ""

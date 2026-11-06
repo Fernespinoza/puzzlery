@@ -18,7 +18,10 @@
     <color name="day_base_background">#fff1f3f5</color>
     <color name="day_text_primary">#ff1a1d20</color>
     <color name="day_text_secondary">#ff6c757d</color>
-    <color name="chooser_current_background">#99114411</color>
+    <!-- Day value: pale sky tint — the upstream dark olive (#99114411,
+         now the night value) washed out the current game's name label
+         on the light theme. -->
+    <color name="chooser_current_background">#330284C7</color>
     <color name="action_bar_and_title_bar">#ff212121</color>
     <color name="webview_background">#ffffffff</color>
     <color name="amoled_black">#ff000000</color>

@@ -9,5 +9,6 @@
 	<item android:title="@string/Load_" android:id="@+id/load" android:alphabeticShortcut="y" android:icon="@drawable/ic_action_load"/>
 	<item android:title="@string/Save_" android:id="@+id/save" android:alphabeticShortcut="w" android:icon="@drawable/ic_action_save"/>
 	<item android:title="@string/Share_" android:id="@+id/share" android:icon="@drawable/ic_action_share" />
+	<item android:title="@string/describe_board" android:id="@+id/describe_board"/>
 	<item android:title="@string/Settings" android:id="@+id/settings" android:icon="@drawable/ic_action_settings"/>
 </menu>

@@ -10,6 +10,10 @@
           android:anyDensity="true"/>
     <!-- Require something mouse-like (by default faketouch requirement), at least for Untangle - and for number-entry games this means you'll have a usable keyboard either on-screen or physically -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <!-- Update checks only (Fernando, 2026-10-31): one read-only request a day to the
+         public GitHub releases API when the automatic check is on. Nothing else in
+         the app uses the network. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:logo="@drawable/ic_ab_logo"
         android:label="@string/app_name"
 		android:enableOnBackInvokedCallback="true"

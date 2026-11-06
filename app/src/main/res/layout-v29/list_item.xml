@@ -38,6 +38,18 @@
 			android:contentDescription=""
 			android:src="@drawable/ic_star"
 			tools:ignore="ContentDescription" /><!-- presence in Starred/Other sections conveys the same info -->
+		<!-- Completion badge: bottom-start, mirroring the star. The
+		     row's contentDescription speaks the badge state, so the
+		     badge itself stays silent and unfocusable. -->
+		<ImageView
+			android:id="@+id/clearedBadge"
+			android:layout_width="22dip"
+			android:layout_height="22dip"
+			android:layout_gravity="bottom|start"
+			android:contentDescription=""
+			android:importantForAccessibility="no"
+			android:visibility="gone"
+			tools:ignore="ContentDescription" />
 	</FrameLayout>
 
 	<TextView
@@ -50,6 +62,19 @@
 		android:paddingLeft="8dip"
 		android:paddingRight="8dip"
 		tools:text="Net: Rotate tiles to connect all tiles (not just endpoints) to the centre tile." />
+
+	<!-- Completion badge, list modes: sits beside the star toggle so
+	     the right edge is the row's status column (the on-icon badge
+	     is the grid modes' home instead). Display only. -->
+	<ImageView
+		android:id="@+id/clearedBadgeList"
+		android:layout_width="24dip"
+		android:layout_height="24dip"
+		android:layout_gravity="center_vertical"
+		android:contentDescription=""
+		android:importantForAccessibility="no"
+		android:visibility="gone"
+		tools:ignore="ContentDescription" />
 
 	<!-- Star toggle button: only shown in list mode (Show descriptions).
 	     Outline when unstarred, filled @drawable/ic_star when starred.

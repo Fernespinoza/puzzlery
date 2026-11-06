@@ -42,6 +42,8 @@ import android.view.KeyEvent.KEYCODE_SPACE
 import android.view.KeyEvent.META_ALT_ON
 import android.view.KeyEvent.META_SHIFT_ON
 import android.view.MotionEvent
+import android.view.accessibility.AccessibilityManager
+import android.view.accessibility.AccessibilityNodeInfo
 import android.view.MotionEvent.ACTION_HOVER_MOVE
 import android.view.MotionEvent.BUTTON_SECONDARY
 import android.view.MotionEvent.BUTTON_STYLUS_PRIMARY
@@ -158,6 +160,30 @@ class GameView(context: Context, attrs: AttributeSet?) : View(context, attrs), V
 
     fun setDragModeFor(whichBackend: BackendName?) {
         dragMode = whichBackend?.dragMode ?: DragMode.UNMODIFIED
+        updateBoardLabel(whichBackend)
+    }
+
+    /** The board's spoken label for its TalkBack stop. */
+    private var boardLabel: String? = null
+
+    /**
+     * Names the board's TalkBack stop: the puzzle, plus a signpost to
+     * Describe board. Without a label TalkBack announces the board as
+     * "untitled"/"unlabeled" — Fernando heard that on every puzzle.
+     */
+    fun updateBoardLabel(whichBackend: BackendName?) {
+        boardLabel = whichBackend?.let {
+            "${it.displayName}, board. Describe board is in the Game menu."
+        }
+        contentDescription = boardLabel
+    }
+
+    override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
+        super.onInitializeAccessibilityNodeInfo(info)
+        // Belt and braces: on Fernando's device the board still
+        // announced as unlabeled with only the contentDescription set,
+        // so force the label into the node info TalkBack reads.
+        boardLabel?.let { info.contentDescription = it }
     }
 
     private fun revertDragInProgress(here: PointF?) {
@@ -392,6 +418,13 @@ class GameView(context: Context, attrs: AttributeSet?) : View(context, attrs), V
         return super.onGenericMotionEvent(event)
     }
 
+    /** True while a screen reader's touch exploration is driving touches. */
+    private fun touchExplorationEnabled(): Boolean {
+        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE)
+            as? AccessibilityManager
+        return am?.isTouchExplorationEnabled == true
+    }
+
     @SuppressLint("ClickableViewAccessibility") // Not a simple enough view to just "click the view"
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (parent.currentBackend == null) return false
@@ -399,6 +432,33 @@ class GameView(context: Context, attrs: AttributeSet?) : View(context, attrs), V
         if (MotionEventCompat.isFromSource(event, SOURCE_STYLUS)
                 && evAction >= 211 && evAction <= 213) {
             event.action = evAction - 211
+        }
+        if (event.pointerCount > 1 && touchExplorationEnabled()) {
+            // TalkBack passes its two-finger gestures (scroll and
+            // friends) through to the app, and the board would read
+            // them as pan/zoom — hijacking a gesture that belongs to
+            // the screen reader. While touch exploration is on,
+            // swallow multi-touch wholesale and cancel any pending
+            // long-press so it cannot fire mid-gesture. Sighted play
+            // (exploration off) never takes this path.
+            parent.handler.removeCallbacks(sendLongPress)
+            when (touchState) {
+                TouchState.WAITING_LONG_PRESS -> touchState = TouchState.IDLE
+                TouchState.DRAGGING -> {
+                    // A drag was already running (e.g. a TalkBack
+                    // double-tap-hold drag) when the second finger
+                    // landed: cancel it the way the view's own cancel
+                    // paths do — revertDragInProgress first drags to
+                    // the mode's revert point, then releases. A bare
+                    // release at the last position would commit the
+                    // drop there in revert-style games (Claude review
+                    // round 2).
+                    revertDragInProgress(lastTouch)
+                    touchState = TouchState.IDLE
+                }
+                else -> {}
+            }
+            return true
         }
         val sdRet = checkPinchZoom(event)
         val gdRet = gestureDetector.onTouchEvent(event)

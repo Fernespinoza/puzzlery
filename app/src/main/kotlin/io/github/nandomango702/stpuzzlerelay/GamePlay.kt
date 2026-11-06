@@ -41,6 +41,7 @@ import android.view.WindowManager
 import android.view.WindowManager.BadTokenException
 import android.widget.Button
 import android.widget.RelativeLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -64,6 +65,7 @@ import androidx.core.view.WindowInsetsCompat.Type.systemBars
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.preference.PreferenceManager
+import io.github.nandomango702.stpuzzlerelay.backend.GameEngineImpl
 import io.github.nandomango702.stpuzzlerelay.GameView.LimitDPIMode.LIMIT_AUTO
 import io.github.nandomango702.stpuzzlerelay.GameView.LimitDPIMode.LIMIT_OFF
 import io.github.nandomango702.stpuzzlerelay.GameView.LimitDPIMode.LIMIT_ON
@@ -237,6 +239,8 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
 
     /** Date string ("2026-10-21") when this GamePlay is showing the daily puzzle, else null. */
     private var dailyModeDate: String? = null
+    /** Which screen launched this game (EXTRA_ORIGIN); null = the chooser. */
+    private var launchOrigin: String? = null
 
     /** Daily mode ("easy"/"hard") and its preset params; only meaningful in daily mode. */
     private var dailyMode: String? = null
@@ -614,15 +618,69 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         return max(0, end - start)
     }
 
+    /** The bottom inset (dp) the board area is currently laid out with. */
+    private fun boardBottomInset(): Int {
+        val bottomInsetPx = if (resources.configuration.orientation == ORIENTATION_LANDSCAPE) {
+            val insets = ViewCompat.getRootWindowInsets(gameView)?.getInsets(systemBars() or displayCutout() or ime())
+            max(insets?.bottom?.minus(statusBar.height) ?: 0, 0)
+        } else 0
+        return pxToDp(bottomInsetPx.toFloat(), resources.displayMetrics).toInt()
+    }
+
     fun gameViewResized() {
         if (progress == null && gameView.w > 10 && gameView.h > 10) {
-            val bottomInsetPx = if (resources.configuration.orientation == ORIENTATION_LANDSCAPE) {
-                val insets = ViewCompat.getRootWindowInsets(gameView)?.getInsets(systemBars() or displayCutout() or ime())
-                max(insets?.bottom?.minus(statusBar.height) ?: 0, 0)
-            } else 0
-            val bottomInset = pxToDp(bottomInsetPx.toFloat(), resources.displayMetrics).toInt()
-            gameEngine.resizeEvent(gameView.wDip, gameView.hDip, bottomInset)
+            gameEngine.resizeEvent(gameView.wDip, gameView.hDip, boardBottomInset())
         }
+    }
+
+    /**
+     * Describe board (TalkBack Phase 1): swaps a recording callbacks
+     * in for the GameView, forces one full redraw through it via a
+     * same-size resize (whose JNI side runs midend_force_redraw
+     * synchronously), swaps back, and shows the captured board text
+     * formatted as spoken rows by DescribeFormatter. The real view's
+     * bitmap is never touched, so the player sees no flicker.
+     */
+    private fun describeBoard() {
+        val backend = currentBackend
+        if (backend == null || progress != null ||
+            gameView.wDip <= 0 || gameView.hDip <= 0
+        ) {
+            // No silent failure: a TalkBack user who asked for the
+            // board must hear that it isn't ready, not nothing.
+            Toast.makeText(this, R.string.describe_not_ready, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val recorder = DescribeRecorder(gameView)
+        gameEngine.setViewCallbacks(recorder)
+        try {
+            gameEngine.resizeEvent(gameView.wDip, gameView.hDip, boardBottomInset())
+        } finally {
+            gameEngine.setViewCallbacks(gameView)
+        }
+        val context = when {
+            inDailyMode() -> getString(R.string.daily) + ", " +
+                (if (dailyMode == "hard") getString(R.string.daily_hard)
+                else getString(R.string.daily_easy))
+            inPlaylistMode() -> "Playlist: " + (playlistName ?: "")
+            else -> null
+        }
+        val status = statusBar.text?.toString()?.trim()?.ifEmpty { null }
+        val body = DescribeFormatter.format(
+            context, status, recorder.texts,
+            notesArePencil = backend == SOLO,
+        )
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val textView = TextView(this).apply {
+            text = body
+            setPadding(pad, pad / 2, pad, pad / 2)
+            setTextIsSelectable(true)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.describe_board) + " — " + backend.displayName)
+            .setView(ScrollView(this).apply { addView(textView) })
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     fun suggestDensity(w: Int, h: Int): Float {
@@ -639,6 +697,7 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         super.onCreate(savedInstanceState)
         restoredInstance = savedInstanceState != null
         readPlaylistExtras(intent)
+        launchOrigin = intent.getStringExtra(EXTRA_ORIGIN)
         if (executableIsMissing(this)) {
             finish()
             return
@@ -737,6 +796,8 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         // game (and the playlist's starting position) instead of the latest.
         setIntent(intent)
         readPlaylistExtras(intent)
+        // Launch origin is per-launch too: it steers the exit path.
+        launchOrigin = intent.getStringExtra(EXTRA_ORIGIN)
         // Daily mode is per-launch: any new intent without the extra leaves daily mode.
         dailyModeDate = intent.getStringExtra(EXTRA_DAILY_DATE)
         dailyMode = intent.getStringExtra(EXTRA_DAILY_MODE)
@@ -1011,6 +1072,25 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         NavUtils.navigateUpFromSameTask(this)
     }
 
+    /**
+     * Exits back to the screen that launched this game. StatsActivity
+     * stays in the task beneath GamePlay, so a plain finish() lands
+     * back on it with its tab and month untouched. The Daily screen
+     * lives inside the chooser, so finishing there asks the chooser
+     * to re-open it on resume. Anything else keeps the historical
+     * behaviour: navigate up to the chooser.
+     */
+    private fun exitToOrigin() {
+        when (launchOrigin) {
+            ORIGIN_STATS -> finish()
+            ORIGIN_DAILY -> {
+                GameChooser.requestDailyReopen()
+                finish()
+            }
+            else -> startChooserAndFinish()
+        }
+    }
+
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         val itemId = item.itemId
         var ret = true
@@ -1019,7 +1099,7 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
             R.id.game_menu -> doGameMenu()
             R.id.type_menu -> doTypeMenu()
             R.id.help_menu -> doHelpMenu()
-            android.R.id.home -> if (inPlaylistMode()) finish() else startChooserAndFinish()
+            android.R.id.home -> if (inPlaylistMode()) finish() else exitToOrigin()
             R.id.undo -> sendKey(0, 0, GameView.UI_UNDO)
             R.id.redo -> sendKey(0, 0, GameView.UI_REDO)
             else -> ret = super.onOptionsItemSelected(item)
@@ -1071,6 +1151,7 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
                     unlikelyBug(this, R.string.saf_missing_short)
                 }
                 R.id.share -> share()
+                R.id.describe_board -> describeBoard()
                 R.id.settings -> startActivity(Intent(this@GamePlay, PrefsActivity::class.java)
                     .putExtra(PrefsActivity.PrefsMainFragment.BACKEND_EXTRA, currentBackend.toString()))
                 else -> return@setOnMenuItemClickListener false
@@ -1535,6 +1616,10 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
 
     override fun onResume() {
         super.onResume()
+        // Re-assert the board's TalkBack label: a recreated activity
+        // restores its game without replaying startGame, which is the
+        // path that normally sets it.
+        gameView.updateBoardLabel(currentBackend)
         resumeSolveTimer()
         appStartIntentOnResume?.let { launch ->
             appStartIntentOnResume = null
@@ -1857,6 +1942,47 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         showCompletedDialog()
     }
 
+    /**
+     * Share-my-solve: builds the result text (emoji and plain
+     * variants — see ShareSolve) and lets the player pick which to
+     * send to the share sheet. The streak is read AFTER the
+     * completion was recorded, so a daily's number includes today.
+     */
+    private fun shareSolve() {
+        val backend = currentBackend ?: return
+        val final = solveFinalMillis ?: return
+        val daily = inDailyMode()
+        val streak = if (daily) {
+            DailyPuzzle.streak(this, DailyPuzzle.Mode.fromString(dailyMode))
+        } else {
+            null
+        }
+        val presetTitle = try {
+            GameEngineImpl.getPresetsForBackend(backend)
+                .firstOrNull { it.params == gameEngine.currentParams }?.title
+        } catch (e: Exception) {
+            null
+        }
+        val (emoji, plain) = ShareSolve.build(
+            puzzleName = backend.displayName,
+            sizeLabel = ShareSolve.sizeLabel(gameEngine.currentParams, presetTitle),
+            timeText = formatSolveTime(final),
+            newBest = lastSolveSetNewBest,
+            dailyDate = if (daily) dailyModeDate else null,
+            streak = streak,
+        )
+        AlertDialog.Builder(this)
+            .setTitle(R.string.share_result_title)
+            .setItems(arrayOf(emoji, plain)) { _, which ->
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, if (which == 0) emoji else plain)
+                }
+                startActivity(Intent.createChooser(send, getString(R.string.share_result_title)))
+            }
+            .show()
+    }
+
     /** The per-puzzle "COMPLETED!" dialog. Safe to call again to re-show it after dismissal. */
     private fun showCompletedDialog() {
         val copyStatusBar = currentBackend in setOf(MINES, FLOOD, SAMEGAME)
@@ -1905,8 +2031,14 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         dialogBinding.otherGame.setOnClickListener {
             d.dismiss()
             // In a playlist, "Other game" exits the playlist back to the playlists list.
-            if (inPlaylistMode()) finish() else startChooserAndFinish()
+            if (inPlaylistMode()) finish() else exitToOrigin()
         }
+        // Share-my-solve: only when this completion has a recorded
+        // time (a completed board reloaded from a save has none).
+        dialogBinding.shareResult.visibility =
+            if (solveFinalMillis != null) View.VISIBLE else View.GONE
+        darkenTopDrawable(dialogBinding.shareResult)
+        dialogBinding.shareResult.setOnClickListener { shareSolve() }
         if (inPlaylistMode()) {
             dialogBinding.nextGame.visibility = View.VISIBLE
             darkenTopDrawable(dialogBinding.nextGame)
@@ -2181,6 +2313,16 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         const val EXTRA_DAILY_MODE = "daily_mode"
         /** Intent extra carrying the daily mode's preset params; defaults to the backend default. */
         const val EXTRA_DAILY_PARAMS = "daily_params"
+        /**
+         * Intent extra naming the screen that launched this game, so the
+         * completion dialog's "Other game" exit returns there instead of
+         * always landing on the plain puzzle list. Absent = the chooser.
+         */
+        const val EXTRA_ORIGIN = "launch_origin"
+        /** Launched from StatsActivity (calendar day or per-puzzle preset). */
+        const val ORIGIN_STATS = "stats"
+        /** Launched from the chooser's Daily screen. */
+        const val ORIGIN_DAILY = "daily"
         private val DIMENSIONS = Pattern.compile("(\\d+)( ?)x\\2(\\d+)(.*)")
         /**
          * Storage key for a puzzle preset's best time, shared with the

@@ -55,6 +55,7 @@ import io.github.nandomango702.stpuzzlerelay.backend.PATTERN
 import io.github.nandomango702.stpuzzlerelay.backend.SOLO
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.CHOOSER_STYLE_KEY
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SAVED_BACKEND
+import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SHOW_COMPLETION_BADGES_KEY
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.STATE_PREFS_NAME
 import io.github.nandomango702.stpuzzlerelay.daily.DailyPuzzle
 import io.github.nandomango702.stpuzzlerelay.databinding.ChooserBinding
@@ -102,6 +103,12 @@ class GameChooser : ActivityWithLoadButton(), OnSharedPreferenceChangeListener {
         useGrid = chooserStyle == "grid" || chooserStyle == "gridnames"
         showDescriptions = chooserStyle == "list"
         showGridNames = chooserStyle == "gridnames"
+        // The chooser is the app's front door (and the backup-import
+        // relaunch target): purge stale daily attempt boards here too,
+        // not only when the daily dialog opens, so an old month's
+        // attempts can never linger resumable — e.g. ones carried in
+        // by an imported backup.
+        DailyPuzzle.purgeStaleAttempts(this, DailyPuzzle.todayString())
         binding = ChooserBinding.inflate(layoutInflater)
         setContentView(binding.root)
         // Actions live in the bottom bar (thumb reachability): it is the
@@ -134,6 +141,9 @@ class GameChooser : ActivityWithLoadButton(), OnSharedPreferenceChangeListener {
             WindowInsetsCompat.CONSUMED
         }
         buildViews()
+        // Automatic update check (Fernando, 2026-10-31): default-on,
+        // throttled to once a day inside UpdateChecker.
+        UpdateChecker.maybeAutoCheck(this)
         ViewCompat.setOnApplyWindowInsetsListener(binding.table) { v, windowInsets ->
             applyTableInsets(windowInsets)
             rethinkColumns(false)
@@ -170,6 +180,11 @@ class GameChooser : ActivityWithLoadButton(), OnSharedPreferenceChangeListener {
             }
         }
         updateDailyTitle()
+        refreshBadges()
+        if (dailyReopenRequested) {
+            dailyReopenRequested = false
+            openDaily()
+        }
     }
 
     private fun enableTableAnimations() {
@@ -223,6 +238,7 @@ class GameChooser : ActivityWithLoadButton(), OnSharedPreferenceChangeListener {
             }
         }
         rethinkColumns(true)
+        refreshBadges()
     }
 
     /**
@@ -251,6 +267,11 @@ class GameChooser : ActivityWithLoadButton(), OnSharedPreferenceChangeListener {
                     PATTERN -> append(" aka Nonograms / Picross")
                     LOOPY -> append(" aka Slitherlink")
                     else -> {}
+                }
+                // TalkBack support tag (verified Describe level), so
+                // the description states what Describe can do here.
+                TalkBackSupport.tag(this@GameChooser, backend)?.let {
+                    append(" · ").append(it)
                 }
             }
         }
@@ -380,7 +401,10 @@ class GameChooser : ActivityWithLoadButton(), OnSharedPreferenceChangeListener {
         var col = 0
         var row = startRow
         itemBindings.forEach {
-            it.star.visibility = if (starred) VISIBLE else GONE
+            // The on-icon star overlay is grid modes only: in list
+            // modes the star toggle at the row's right edge already
+            // shows (and changes) the same state.
+            it.star.visibility = if (starred && useGrid) VISIBLE else GONE
             // In list modes the row stretches to the full cell width: the
             // name text (weight 1) then pushes the star toggle to the right
             // edge, and the current-game highlight covers the whole row.
@@ -572,6 +596,7 @@ class GameChooser : ActivityWithLoadButton(), OnSharedPreferenceChangeListener {
             data = Uri.fromParts(GamePlay.OUR_SCHEME, backend.toString(), null)
             putExtra(GamePlay.EXTRA_DAILY_DATE, date)
             putExtra(GamePlay.EXTRA_DAILY_MODE, mode.name.lowercase())
+            putExtra(GamePlay.EXTRA_ORIGIN, GamePlay.ORIGIN_DAILY)
             params?.let { putExtra(GamePlay.EXTRA_DAILY_PARAMS, it) }
         })
     }
@@ -642,6 +667,77 @@ class GameChooser : ActivityWithLoadButton(), OnSharedPreferenceChangeListener {
     private fun hasBest(backend: BackendName, params: String): Boolean {
         val state = getSharedPreferences(STATE_PREFS_NAME, MODE_PRIVATE)
         return state.getLong(GamePlay.bestTimeKeyFor(backend, params), -1) >= 0
+    }
+
+    /**
+     * Recomputes every tile's completion badge and its spoken state
+     * from current bests. A badge shows once at least one of the
+     * puzzle's presets is legitimately solved: a check ringed by a
+     * progress arc, turning solid gold at 100% (every preset solved).
+     * Runs on resume — bests change while playing, and the Settings
+     * toggle for badges lives behind this screen too.
+     */
+    private fun refreshBadges() {
+        val show = PreferenceManager.getDefaultSharedPreferences(this)
+            .getBoolean(SHOW_COMPLETION_BADGES_KEY, true)
+        val iconsOnly = useGrid && !showGridNames
+        BackendName.all.forEach { backend ->
+            val binding = itemBindings[backend] ?: return@forEach
+            val presets = if (show) presetsFor(backend) else emptyList()
+            val solved = presets.count { hasBest(backend, it) }
+            val badged = show && presets.isNotEmpty() && solved > 0
+            // The badge's home depends on the mode: on the icon in the
+            // grid modes, beside the star toggle in the list modes
+            // (where the right edge is the row's status column).
+            val home = if (useGrid) binding.clearedBadge else binding.clearedBadgeList
+            val away = if (useGrid) binding.clearedBadgeList else binding.clearedBadge
+            away.visibility = GONE
+            if (badged) {
+                home.visibility = VISIBLE
+                home.setImageDrawable(
+                    ClearedBadgeDrawable(
+                        solved.toFloat() / presets.size,
+                        solved == presets.size,
+                    )
+                )
+            } else {
+                home.visibility = GONE
+            }
+            // Spoken state rides on the row's content description,
+            // layered over the same baseline buildViews uses: the
+            // plain name in icons-only mode, nothing (children speak)
+            // elsewhere. With a badge, the base becomes the name — or
+            // the row's full visible text in labelled modes — plus
+            // the badge suffix. The TalkBack support tag layers on
+            // the same way: appended to whatever is spoken here,
+            // unless the base already contains it (in descriptions
+            // mode the visible text carries the tag, and in that
+            // mode an untagged-by-badge row stays description-less
+            // so the visible text speaks it directly).
+            val tag = TalkBackSupport.tag(this, backend)
+            fun spoken(base: String): String =
+                if (tag == null || base.contains(tag)) base else "$base. $tag"
+            // In descriptions mode the visible text already ends with
+            // the tag; strip it from the base so every mode speaks the
+            // same order — name/description, badge state, then tag.
+            var baseText =
+                if (iconsOnly) backend.displayName else binding.text.text.toString()
+            if (tag != null) baseText = baseText.replace(" · $tag", "")
+            binding.root.contentDescription = when {
+                badged && solved == presets.size -> spoken(
+                    getString(R.string.badge_cleared_label, baseText),
+                )
+                badged -> spoken(
+                    getString(
+                        R.string.badge_progress_label,
+                        baseText, solved, presets.size,
+                    ),
+                )
+                iconsOnly -> spoken(backend.displayName)
+                tag != null && !showDescriptions -> spoken(baseText)
+                else -> null
+            }
+        }
     }
 
     /** [backend]'s presets with no best yet — the 100% chase pool. */
@@ -839,6 +935,19 @@ class GameChooser : ActivityWithLoadButton(), OnSharedPreferenceChangeListener {
     companion object {
 
         private val DEFAULT_STARRED = setOf(SOLO, PATTERN, MINES, LOOPY)
+
+        /**
+         * One-shot hand-off from GamePlay: a daily game exited via
+         * "Other game" asks the chooser to re-open the Daily screen
+         * when it resumes, so the player lands back where they
+         * started instead of on the plain puzzle list.
+         */
+        @Volatile
+        private var dailyReopenRequested = false
+
+        fun requestDailyReopen() {
+            dailyReopenRequested = true
+        }
 
         /**
          * Whether [game] is starred, from the same default-prefs store the

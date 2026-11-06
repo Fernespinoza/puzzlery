@@ -81,6 +81,13 @@
 			android:title="@string/showBestTime"
 			app:iconSpaceReserved="false" />
 
+		<SwitchPreferenceCompat
+			android:defaultValue="true"
+			android:key="showCompletionBadges"
+			android:summary="@string/showCompletionBadgesSummary"
+			android:title="@string/showCompletionBadges"
+			app:iconSpaceReserved="false" />
+
 		<ListPreference
 			android:defaultValue="@string/orientationModeDefaultValue"
 			android:entries="@array/orientationModeDescs"
@@ -124,6 +131,26 @@
 	</PreferenceCategory>
 
 	<PreferenceCategory
+		android:title="@string/backup_category"
+		app:iconSpaceReserved="false">
+
+		<Preference
+			android:key="export_backup"
+			android:selectable="true"
+			android:title="@string/export_backup"
+			android:summary="@string/export_backup_summary"
+			app:iconSpaceReserved="false" />
+
+		<Preference
+			android:key="import_backup"
+			android:selectable="true"
+			android:title="@string/import_backup"
+			android:summary="@string/import_backup_summary"
+			app:iconSpaceReserved="false" />
+
+	</PreferenceCategory>
+
+	<PreferenceCategory
 		android:title="@string/About_this_app"
 		app:iconSpaceReserved="false">
 
@@ -132,6 +159,19 @@
 			android:selectable="true"
 			android:summary="@string/about_content"
 			android:widgetLayout="@layout/copy_icon"
+			app:iconSpaceReserved="false" />
+
+		<SwitchPreferenceCompat
+			android:key="checkForUpdates"
+			android:defaultValue="true"
+			android:title="@string/check_for_updates"
+			android:summary="@string/check_for_updates_summary"
+			app:iconSpaceReserved="false" />
+
+		<Preference
+			android:key="check_updates_now"
+			android:selectable="true"
+			android:title="@string/check_updates_now"
 			app:iconSpaceReserved="false" />
 
 		<PreferenceScreen

@@ -53,6 +53,17 @@
             style="@style/Button.Completed" />
 
         <Button
+            android:id="@+id/share_result"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_margin="2dp"
+            android:layout_weight="1"
+            android:paddingTop="16dp"
+            android:drawableTop="@drawable/ic_action_share"
+            android:text="@string/share_result"
+            style="@style/Button.Completed" />
+
+        <Button
             android:id="@+id/other_game"
             android:layout_width="0dp"
             android:layout_height="match_parent"

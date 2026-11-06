@@ -45,14 +45,42 @@
                     android:layout_height="wrap_content"
                     android:textSize="16sp" />
 
-                <TextView
-                    android:id="@+id/statsMonthTitle"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:gravity="center"
-                    android:textSize="18sp"
-                    android:textStyle="bold" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/statsPrevMonth"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="@string/stats_prev_month"
+                        android:minWidth="0dp"
+                        android:text="‹"
+                        android:textSize="24sp" />
+
+                    <TextView
+                        android:id="@+id/statsMonthTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/statsNextMonth"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="@string/stats_next_month"
+                        android:minWidth="0dp"
+                        android:text="›"
+                        android:textSize="24sp" />
+                </LinearLayout>
 
                 <GridLayout
                     android:id="@+id/statsWeekdayHeader"

@@ -57,27 +57,30 @@ the things it chose not to:
   the time, when the timer is shown). More lands every release on the
   road to full support in 1.0.
 
-## Current release — v0.4.0
+## Current release — v0.5.0
 
-The app is now **Puzzlery** — this release is the UI overhaul:
+**Backup & progress** — your records are yours, and now they travel:
 
-- All 40 upstream puzzles, with their original settings
-- Daily puzzle redesigned — Easy (the simplest preset) and Hard cards
-  with streaks, resumable attempts, and Practice; "Show solution" is
-  hidden in daily mode
-- Solve timer — starts on your first move, pauses when you leave — with
-  per-preset best times for clean runs; the timer and best-time
-  displays can be hidden in Settings
-- Stats page — a monthly calendar of daily results with streaks, plus
-  a per-puzzle tab with best times, solves, and time spent
-- Playlists with Continue — each playlist keeps its own boards — plus
-  Restart and Shuffle
-- Chooser display modes — names only, descriptions, icons only, or
-  icons with names; Solo, Pattern, Mines, and Loopy starred by default
-- Real light and dark themes, plus an optional true-black (AMOLED)
-  night mode
-- TalkBack foundation — named tiles in icons-only mode and a spoken
-  completion announcement
+- Backup & export — every setting and all your history (best times,
+  streaks, daily records, starred puzzles) in one JSON file. Import
+  replaces everything behind a confirm prompt, and every entry is
+  type-checked first, so a damaged or doctored file can't corrupt
+  the app
+- Completion badges — a ring on each puzzle's tile fills as you
+  clear its presets, and turns gold when you've cleared them all
+- Stats calendar pages back through past months, not just this one
+- Share your solve — a short Wordle-style result text after a win,
+  with your time, a ⚡ for a new best, and your streak and Daily
+  number on dailies; there's a plain-words version too
+- Automatic update check — once a day the app checks GitHub for a
+  newer release and offers the download. It's on by default, can be
+  turned off in Settings, and is the app's only use of the network
+- TalkBack: "Describe board" reads the board out in rows from the
+  game menu; puzzles carry support tags in the chooser and Stats so
+  you know what you can do before you open them; TalkBack's
+  two-finger gestures no longer drag the board around
+- Leaving a game takes you back where you launched it — Stats, or
+  the Daily screen
 
 See [ROADMAP.md](ROADMAP.md) for what's next.
 

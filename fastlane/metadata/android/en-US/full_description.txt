@@ -1,5 +1,19 @@
-<p>This is Simon Tatham's open-source collection of 40 single-player logic puzzle games, ported to Android. It will always be free, with no ads, and playable offline. All games are generated on demand with adjustable size and difficulty, so you'll never run out of puzzles.</p>
+Puzzlery is an accessible daily logic suite built on Simon Tatham's Portable Puzzle Collection — all 40 of the classic single-player logic games, ported to Android and extended by a visually impaired solo developer. It will always be free, with no ads, no accounts, and no tracking. Every game is generated on demand with adjustable size and difficulty, so you'll never run out of puzzles.
 
-<p>Various control options for small screens: on-screen arrow keys (can be enabled in Settings), pinch to zoom, and a button to swap press/long-press.</p>
+Contains: Black Box, Bridges, Cube, Dominosa, Fifteen, Filling, Flip, Flood, Galaxies, Guess, Inertia, Keen, Light Up, Loopy (Slitherlink), Magnets, Map, Mines (Minesweeper), Mosaic, Net, Netslide, Palisade, Pattern (Nonograms), Pearl, Pegs (Peg solitaire), Range, Rectangles, Same Game, Signpost, Singles, Sixteen, Slant, Solo (Sudoku), Tents, Towers, Tracks, Twiddle, Undead, Unequal, Unruly, Untangle.
 
-<p>Contains the following 40 games: Black Box, Bridges, Cube, Dominosa, Fifteen, Filling, Flip, Flood, Galaxies, Guess, Inertia, Keen, Light Up, Loopy, Magnets, Map, Mines (Minesweeper), Mosaic, Net, Netslide, Palisade, Pattern, Pearl, Pegs (Peg solitaire), Range, Rectangles, Same Game, Signpost, Singles, Sixteen, Slant, Solo (Sudoku), Tents, Towers, Tracks, Twiddle, Undead, Unequal, Unruly, Untangle</p>
+What Puzzlery adds:
+
+- A daily puzzle (Easy and Hard) with streaks, resumable attempts, and a stats calendar that pages back through past months
+- Playlists — build your own rotation of favorite puzzles, with Continue, Restart, and Shuffle
+- Per-preset best times for clean runs, solve counts, and completion badges that fill as you clear each puzzle's presets and turn gold at 100%
+- Backup & export — every setting and all your history in one file, with validation on import
+- Share-my-solve — a short result text after a win, in emoji and plain-words versions
+- Chooser display modes (names, descriptions, icons), starred favorites, and a random picker that can deal only puzzles you haven't solved
+- Light, dark, and AMOLED true-black themes
+
+Accessibility is a core focus, not an afterthought. TalkBack support is being built release by release toward full playability at 1.0: named tiles, a spoken completion announcement, "Describe board" (a full read-out of the board in rows, available on verified puzzles), per-puzzle support tags shown before you open a game, and gesture handling that keeps TalkBack's two-finger gestures from moving the board. A solve timer that starts on your first move and pauses when you leave can be shown or hidden, as can best times.
+
+One permission: INTERNET, used only for a once-a-day check for new releases on GitHub, which can be turned off in Settings. Gameplay is fully offline.
+
+Puzzlery is open source (MIT), forked from Chris Boyle's Android port of Simon Tatham's collection.
