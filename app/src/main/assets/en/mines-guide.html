@@ -1,0 +1,33 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=US-ASCII">
+<title>Mines strategy guide</title>
+<link rel="up" href="mines.html">
+<style type="text/css">body { word-wrap: break-word; } body.night { color: #dddddd; background: #000000; } body.night a:link { color: #8888ff; } body.night a:visited { color: #cc88ff; }</style></head>
+<body>
+<p><a href="mines.html">Back to Mines</a> | <a href="index.html">Contents</a></p>
+<h1>Strategy guide</h1>
+<h2>First moves</h2>
+<p>
+Your first tap is always safe; work from the edge of whatever it opens. Hunt for numbers touching only one hidden cell &#8212; that cell is a mine, so flag it. Each flag may complete the count for the number beside it, which makes that number's other cells safe to open. Work the boundary in that chain: flag, open the cells that become safe, repeat. The corners of a cleared area usually resolve first, because the numbers there touch fewer hidden cells.
+</p>
+<h2>Key patterns</h2>
+<p>
+Learn the straight-edge runs. Along a flat boundary, 1-2-1 means the cells in front of the two 1s are mines and the cell in front of the 2 is safe. A 3 sitting in a board corner touches only three cells, so all three are mines &#8212; and that usually settles the 2 beside it. Where two numbers share most of their hidden cells, subtract: if every hidden cell a 1 can see is also seen by a 2 next to it, the 2's second mine hides in the cells only the 2 can see. Keep a running count of flags against the board's total; late on, it solves positions that look like coin flips.
+</p>
+<h2>Common traps</h2>
+<p>
+Flagging hunches. A wrong flag is worse than no flag: it satisfies numbers falsely and detonates a mine two moves later, somewhere that feels unrelated. Never open a cell next to a number before checking whether flags already placed complete its count. In this Mines a guess is never truly forced &#8212; the boards are built to fall to logic alone, so if two options look equal, you have missed a deduction: re-check the numbers whose flags almost complete them, and count your flags against the board's total before touching anything dark.
+</p>
+<h2>Sources</h2>
+<ul>
+<li>"Your first tap is always safe" &#8212; in this app it is stronger than safe: the engine arranges for the first opened square to be a 0, and a built-in solver verifies every generated board. Puzzlery's own engine source, app/src/main/jni/mines.c ("Minesweeper solver, used to ensure the generated grids are solvable without having to take risks"; the first square is 0 "by deliberate arrangement"). The same guarantee stated publicly for Tatham's Mines &#8212; first probe always safe, no map asks you to guess: "Minesweeper online: no guessing, ever", <a href="https://www.neurodual.fr/en/games/minesweeper">https://www.neurodual.fr/en/games/minesweeper</a></li>
+<li>The working rules the guide chains through &#8212; if a number's flagged neighbours equal the number, its other neighbours are safe; if flags plus covered squares equal the number, every covered neighbour is a mine (this is what makes a corner 3 an all-mines cell); comparing two numbers that share covered squares is subtraction: "Minesweeper: rules, patterns and a free board to play", <a href="https://arkedia.judeen.dev/games/minesweeper/">https://arkedia.judeen.dev/games/minesweeper/</a></li>
+<li>The 1-2-1 pattern, mines under the two 1s and the cell in front of the 2 safe: same two sources above.</li>
+<li>Correction applied 2026-11-14 on Fernando's approval: the draft's original closing advice ("a guess is only truly forced when&#8230; guess a frontier cell") did not hold for Puzzlery's Mines &#8212; the generator only deals boards its solver can finish without risk, so a guess is never truly forced here. The Common traps ending now says so, per the sources above.</li>
+</ul>
+
+<hr><address></address></body>
+</html>

@@ -62,11 +62,21 @@
             android:importantForAccessibility="no"
             android:text="00:00" />
 
+        <io.github.nandomango702.stpuzzlerelay.PatternModeBar
+            android:id="@+id/pattern_mode_bar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_toStartOf="@id/buttons"
+            android:layout_alignParentStart="true"
+            android:layout_above="@id/timer_view"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
         <io.github.nandomango702.stpuzzlerelay.GameView
             android:id="@+id/game_view"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_above="@id/timer_view"
+            android:layout_above="@id/pattern_mode_bar"
             android:layout_toStartOf="@id/buttons"
             android:layout_alignParentTop="true"
             android:layout_alignParentStart="true"

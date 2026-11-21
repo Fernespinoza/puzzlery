@@ -1,0 +1,15 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- A square outline with an X: the Mark (marked-off) glyph (tinted at runtime). -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M3,3h18v2H3z M3,19h18v2H3z M3,5h2v14H3z M19,5h2v14h-2z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:pathData="M8.5,8.5 L15.5,15.5 M15.5,8.5 L8.5,15.5" />
+</vector>

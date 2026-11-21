@@ -88,6 +88,9 @@ interface GameEngine {
     val cursorLocation: RectF
     @get:VisibleForTesting
     val gameSizeInGameCoords: Point
+
+    /** The engine's current tile size in game coordinates (midend_tilesize); 0 before the first resize. */
+    val engineTilesize: Int
     @VisibleForTesting
     fun freezePartialRedo()
     fun setViewCallbacks(viewCallbacks: ViewCallbacks)
@@ -128,6 +131,7 @@ interface GameEngine {
             override fun suggestDensity(x: Int, y: Int): Float = 1f
             override val cursorLocation: RectF get() = RectF(0f, 0f, 1f, 1f)
             override val gameSizeInGameCoords: Point get() = Point(1, 1)
+            override val engineTilesize: Int get() = 0
             override fun freezePartialRedo() {}
             override fun setViewCallbacks(viewCallbacks: ViewCallbacks) {}
         }

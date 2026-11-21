@@ -6,6 +6,7 @@ import android.content.res.Configuration
 import android.util.AttributeSet
 import android.util.Log
 import android.util.TypedValue
+import android.view.accessibility.AccessibilityManager
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
@@ -789,10 +790,17 @@ private fun KeyButton(
     )
     CompositionLocalProvider {
         val inputModeManager = LocalInputModeManager.current
+        val context = LocalContext.current
         Button(
             onClick = {
-                // Touch inputs handled by modifier.autoRepeat; don't invoke again on release
-                if (inputModeManager.inputMode != Touch) onKey.value(c, false)
+                // Touch inputs handled by modifier.autoRepeat; don't invoke again on release.
+                // Exception: with touch exploration (TalkBack) on, the user's double-tap
+                // reaches us ONLY as this accessibility click — TalkBack consumes the
+                // touches, so modifier.autoRepeat never sees a press — and the input-mode
+                // gate (Touch, from explore-by-touch) would swallow the key entirely.
+                val touchExploration = (context.getSystemService(Context.ACCESSIBILITY_SERVICE)
+                    as AccessibilityManager).isTouchExplorationEnabled
+                if (touchExploration || inputModeManager.inputMode != Touch) onKey.value(c, false)
             },
             enabled = enabled.value,
             colors = buttonColors,

@@ -1028,6 +1028,12 @@ Java_io_github_nandomango702_stpuzzlerelay_backend_GameEngineImpl_getGameSizeInG
     return (*env)->NewObject(env, Point, newPoint, fe->winwidth, fe->winheight);
 }
 
+__attribute__((unused)) JNIEXPORT jint JNICALL
+Java_io_github_nandomango702_stpuzzlerelay_backend_GameEngineImpl_getEngineTilesize(JNIEnv *env, jobject gameEngine) {
+    ENV_TO_FE_OR_RETURN(0)
+    return midend_tilesize(fe->me);
+}
+
 
 JNIEXPORT void JNICALL
 Java_io_github_nandomango702_stpuzzlerelay_backend_GameEngineImpl_freezePartialRedo(JNIEnv *env, jobject gameEngine) {

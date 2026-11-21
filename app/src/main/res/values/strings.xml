@@ -76,6 +76,8 @@ Version %s"</string>
     <string name="games_others_none_starred">Long press to star a game</string>
     <string name="star_game">Star %1$s</string>
     <string name="unstar_game">Unstar %1$s</string>
+    <string name="first_run_hint_title">Welcome to Puzzlery</string>
+    <string name="first_run_hint_message">Starred games: long-press any game in this list (or tap its star) to star it. Starred games move into their own section at the top, so the puzzles you play most are always first.\n\nAlso known as: a few games carry their familiar names too — Solo is Sudoku, Pattern is Nonograms / Picross, and Loopy is Slitherlink. You\'ll see them noted in the list when descriptions are shown.</string>
     <!-- Help activity -->
     <string name="title_activity_help">Help</string>
     <string name="activity_not_found">No suitable application is available to handle this link</string>
@@ -198,6 +200,22 @@ Version %s"</string>
     <string name="tb_level_clues_only">Describe board reads the clues only</string>
     <string name="tb_level_no_text">Describe board has no board text to read</string>
     <string name="stats_tb_support">TalkBack support: %1$s</string>
+    <string name="tb_grid_row_col">Row %1$d, column %2$d: %3$s</string>
+    <string name="tb_grid_given">given %1$s</string>
+    <string name="tb_grid_entered">entered %1$s</string>
+    <string name="tb_grid_error">entered %1$s, marked wrong</string>
+    <string name="tb_grid_empty">empty</string>
+    <string name="tb_grid_pencil">pencil marks %1$s</string>
+    <string name="tb_grid_cage">, cage total %1$s</string>
+    <string name="tb_grid_cage_cells">, cage total %1$s: %2$s</string>
+    <string name="tb_grid_cage_row_col">row %1$d, column %2$d</string>
+    <string name="tb_grid_cage_row_cols">row %1$d, columns %2$s</string>
+    <string name="tb_grid_cage_col_range">%1$d to %2$d</string>
+    <string name="tb_selected_cell">Row %1$d, column %2$d selected</string>
+    <string name="tb_selected_pencil_suffix">, pencil mode on</string>
+    <string name="tb_ann_row_complete">Row %1$d complete.</string>
+    <string name="tb_ann_col_complete">Column %1$d complete.</string>
+    <string name="tb_ann_box_complete">Box %1$d complete.</string>
     <string name="amoledBlack">True black (AMOLED)</string>
     <string name="amoledBlackSummary">In night mode, use pure black backgrounds instead of dark gray. Saves power on OLED screens</string>
     <string name="bestTimeDisplay">Best %1$s</string>
@@ -335,6 +353,10 @@ Version %s"</string>
     <string name="share_result">Share</string>
     <string name="share_result_title">Share your solve</string>
     <string name="describe_board">Describe board</string>
+    <string name="set_bookmark">Set bookmark</string>
+    <string name="go_to_bookmark">Go to bookmark</string>
+    <string name="bookmark_set">Bookmark set</string>
+    <string name="bookmark_restored">Bookmark restored</string>
     <string name="describe_not_ready">The board isn\'t ready yet — give it a moment and try again.</string>
     <string name="completed_new_best">New best time for this preset!</string>
     <string name="DEAD">DEAD!</string>
@@ -762,4 +784,14 @@ Version %s"</string>
         <item quantity="one">%d puzzle</item>
         <item quantity="other">%d puzzles</item>
     </plurals>
+    <!-- Pattern mode bar (v0.6.0): button labels and the content
+         descriptions / switch announcements that name each mode. -->
+    <string name="pattern_mode_fill">Fill</string>
+    <string name="pattern_mode_mark">Mark</string>
+    <string name="pattern_mode_erase">Erase</string>
+    <string name="pattern_mode_pan">Pan</string>
+    <string name="pattern_mode_fill_desc">Fill mode</string>
+    <string name="pattern_mode_mark_desc">Mark mode</string>
+    <string name="pattern_mode_erase_desc">Erase mode</string>
+    <string name="pattern_mode_pan_desc">Pan mode</string>
 </resources>

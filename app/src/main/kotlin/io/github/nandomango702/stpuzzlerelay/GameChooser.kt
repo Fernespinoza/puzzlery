@@ -161,6 +161,31 @@ class GameChooser : ActivityWithLoadButton(), OnSharedPreferenceChangeListener {
             }
         }
         enableTableAnimations()
+        maybeShowFirstRunHint()
+    }
+
+    /**
+     * First-run hint (ROADMAP v0.6.0): a one-shot coachmark on first
+     * open explaining the starred section and the aka tags. The seen
+     * flag lives in a dedicated SharedPreferences file, NOT in the
+     * default or state stores: Backup exports exactly those two
+     * stores wholesale, so a flag in either would ride along in every
+     * backup and a restore could resurrect or erase it. Out here
+     * (same precedent as GameView's "pattern_clues" file) the flag is
+     * purely local — export never reads this file, import never
+     * touches it, and a restore can never break or be broken by it.
+     * The flag is written before the dialog shows, so the hint can
+     * never appear twice even if the process dies with it on screen.
+     */
+    private fun maybeShowFirstRunHint() {
+        val hintPrefs = getSharedPreferences(FIRST_RUN_PREFS_NAME, MODE_PRIVATE)
+        if (hintPrefs.getBoolean(FIRST_RUN_HINT_SEEN_KEY, false)) return
+        hintPrefs.edit { putBoolean(FIRST_RUN_HINT_SEEN_KEY, true) }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.first_run_hint_title)
+            .setMessage(R.string.first_run_hint_message)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     override fun onResume() {
@@ -933,6 +958,12 @@ class GameChooser : ActivityWithLoadButton(), OnSharedPreferenceChangeListener {
     }
 
     companion object {
+
+        /** Dedicated store for the first-run hint's seen flag (see
+         * [maybeShowFirstRunHint] for why it stays out of the two
+         * Backup-exported stores). */
+        private const val FIRST_RUN_PREFS_NAME = "first_run"
+        private const val FIRST_RUN_HINT_SEEN_KEY = "first_run_hint_seen"
 
         private val DEFAULT_STARRED = setOf(SOLO, PATTERN, MINES, LOOPY)
 

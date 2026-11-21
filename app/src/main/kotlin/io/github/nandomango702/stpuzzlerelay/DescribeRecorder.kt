@@ -43,16 +43,59 @@ class DescribeRecorder(
 
     val texts = mutableListOf<DrawnText>()
 
+    data class DrawnLine(
+        val x1: Float,
+        val y1: Float,
+        val x2: Float,
+        val y2: Float,
+        val colour: Int,
+    )
+
+    val lines = mutableListOf<DrawnLine>()
+
+    data class DrawnRect(
+        val x: Int,
+        val y: Int,
+        val w: Int,
+        val h: Int,
+        val colour: Int,
+    )
+
+    val rects = mutableListOf<DrawnRect>()
+
+    /**
+     * Filled rects are recorded only when a consumer asks:
+     * Pattern's mode bar reads its cell states from grid_square's
+     * per-cell fills (see PatternModePlanner.cellStates), and
+     * GamePlay enables this for Pattern captures only. A full
+     * board redraw emits a rect per cell plus grid furniture —
+     * volume no other capture consumer should have to carry.
+     */
+    var recordRects = false
+
     override fun drawText(x: Int, y: Int, flags: Int, size: Int, colour: Int, text: String) {
         texts += DrawnText(x, y, flags, size, colour, text)
     }
 
-    // The other primitives carry no text, so they are not recorded;
-    // only their absence matters (a board with no texts at all gets
-    // the formatter's no-text fallback).
-    override fun drawLine(thickness: Float, x1: Float, y1: Float, x2: Float, y2: Float, colour: Int) {}
+    // Lines are recorded for one consumer: Solo's TalkBack grid
+    // reconstructs Killer cage membership from the cage segments,
+    // which solo.c draws as lines and nothing else in its redraw
+    // path does (spike-verified 2026-11-08). Every other game just
+    // accumulates lines nobody reads. Thickness is irrelevant —
+    // cage segments are identified by colour and geometry.
+    override fun drawLine(thickness: Float, x1: Float, y1: Float, x2: Float, y2: Float, colour: Int) {
+        lines += DrawnLine(x1, y1, x2, y2, colour)
+    }
 
-    override fun fillRect(x: Int, y: Int, w: Int, h: Int, colour: Int) {}
+    // The remaining primitives carry neither text nor cage
+    // segments, so they are not recorded; only their absence
+    // matters (a board with no texts at all gets the formatter's
+    // no-text fallback). fillRect is the one exception: it is
+    // recorded under [recordRects], for Pattern's cell states.
+
+    override fun fillRect(x: Int, y: Int, w: Int, h: Int, colour: Int) {
+        if (recordRects) rects += DrawnRect(x, y, w, h, colour)
+    }
 
     override fun drawCircle(
         thickness: Float,

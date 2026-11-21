@@ -57,30 +57,31 @@ the things it chose not to:
   the time, when the timer is shown). More lands every release on the
   road to full support in 1.0.
 
-## Current release — v0.5.0
+## Current release — v0.6.0
 
-**Backup & progress** — your records are yours, and now they travel:
+**Better Help** — strategy guides, and big upgrades for Solo and Pattern:
 
-- Backup & export — every setting and all your history (best times,
-  streaks, daily records, starred puzzles) in one JSON file. Import
-  replaces everything behind a confirm prompt, and every entry is
-  type-checked first, so a damaged or doctored file can't corrupt
-  the app
-- Completion badges — a ring on each puzzle's tile fills as you
-  clear its presets, and turns gold when you've cleared them all
-- Stats calendar pages back through past months, not just this one
-- Share your solve — a short Wordle-style result text after a win,
-  with your time, a ⚡ for a new best, and your streak and Daily
-  number on dailies; there's a plain-words version too
-- Automatic update check — once a day the app checks GitHub for a
-  newer release and offers the download. It's on by default, can be
-  turned off in Settings, and is the app's only use of the network
-- TalkBack: "Describe board" reads the board out in rows from the
-  game menu; puzzles carry support tags in the chooser and Stats so
-  you know what you can do before you open them; TalkBack's
-  two-finger gestures no longer drag the board around
-- Leaving a game takes you back where you launched it — Stats, or
-  the Daily screen
+- Strategy guides for Solo, Pattern, Mines, and Loopy — First moves,
+  Key patterns, Common traps, and the sources they draw on. Each guide
+  is its own page, one tap on the Strategy guide button at the top of
+  that puzzle's Help
+- Solo with TalkBack — the board is a real grid you can swipe through
+  and play, and Killer cage totals and members are part of each cell's
+  description. Solo's Help also gains a "Playing Solo with TalkBack"
+  section. This is new and still labelled untested — TalkBack-first
+  players, your feedback is exactly what it needs
+- Pattern: pinned clues — the row and column clues stay in view while
+  you pan around a big board, with a small map in the corner showing
+  where you're looking
+- Pattern mode bar — Fill, Mark, Erase, and Pan buttons set cells
+  directly instead of cycling. In Pan, a tap cycles a cell one way, a
+  hold cycles it the other way and paints a straight line, and a
+  quick drag pans the board
+- Bookmarks — set a checkpoint in any game and jump back to it; it
+  never affects your times, streaks, or completion
+- A one-time welcome hint explains starred games and the familiar
+  names (Sudoku, Nonograms / Picross, Slitherlink) the first time
+  you open the puzzle list
 
 See [ROADMAP.md](ROADMAP.md) for what's next.
 

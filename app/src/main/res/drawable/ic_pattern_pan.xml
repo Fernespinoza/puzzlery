@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Four arrows out of a centre: the Pan (move the board) glyph (tinted at runtime). -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M12,2 L15.5,6.5 L13.5,6.5 L13.5,10.5 L17.5,10.5 L22,12 L17.5,13.5 L13.5,13.5 L13.5,17.5 L15.5,17.5 L12,22 L8.5,17.5 L10.5,17.5 L10.5,13.5 L6.5,13.5 L2,12 L6.5,10.5 L10.5,10.5 L10.5,6.5 L8.5,6.5 Z" />
+</vector>

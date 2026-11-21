@@ -58,6 +58,8 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.util.TypedValueCompat.pxToDp
 import androidx.core.view.ViewCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import androidx.core.view.accessibility.AccessibilityNodeProviderCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsCompat.Type.displayCutout
 import androidx.core.view.WindowInsetsCompat.Type.ime
@@ -90,6 +92,7 @@ import io.github.nandomango702.stpuzzlerelay.backend.LOOPY
 import io.github.nandomango702.stpuzzlerelay.backend.MINES
 import io.github.nandomango702.stpuzzlerelay.backend.NET
 import io.github.nandomango702.stpuzzlerelay.backend.PALISADE
+import io.github.nandomango702.stpuzzlerelay.backend.PATTERN
 import io.github.nandomango702.stpuzzlerelay.backend.SAMEGAME
 import io.github.nandomango702.stpuzzlerelay.backend.SOLO
 import io.github.nandomango702.stpuzzlerelay.backend.UNDEAD
@@ -146,6 +149,7 @@ import io.github.nandomango702.stpuzzlerelay.launch.GameGenerator
 import io.github.nandomango702.stpuzzlerelay.launch.GameGenerator.Companion.cleanUpOldExecutables
 import io.github.nandomango702.stpuzzlerelay.launch.GameGenerator.Companion.executableIsMissing
 import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch
+import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch.Companion.fromBookmark
 import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch.Companion.fromContentURI
 import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch.Companion.fromSeed
 import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch.Companion.ofDailyAttempt
@@ -177,6 +181,7 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
     private lateinit var buttons: ButtonsView
     private lateinit var mainLayout: RelativeLayout
     private lateinit var gameView: GameView
+    private lateinit var patternModeBar: PatternModeBar
     private lateinit var prefs: SharedPreferences
     private lateinit var state: SharedPreferences
     private lateinit var gameGenerator: GameGenerator
@@ -641,22 +646,111 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
      * formatted as spoken rows by DescribeFormatter. The real view's
      * bitmap is never touched, so the player sees no flicker.
      */
-    private fun describeBoard() {
-        val backend = currentBackend
-        if (backend == null || progress != null ||
+    /** Solo's board shape: cells per side, and block size when it has blocks. */
+    data class SoloShape(
+        val cr: Int,
+        val blockCols: Int?,
+        val blockRows: Int?,
+    )
+
+    /** A board capture plus the geometry the TalkBack grid needs. */
+    data class BoardCapture(
+        val texts: List<DescribeRecorder.DrawnText>,
+        /** Drawn lines (Solo's Killer cage segments); only the grid model reads them. */
+        val lines: List<DescribeRecorder.DrawnLine>,
+        /** Filled rects (Pattern's per-cell state fills); recorded for Pattern captures only. */
+        val rects: List<DescribeRecorder.DrawnRect>,
+        /** Solo's board shape, parsed from the game params; null when unparseable. */
+        val soloShape: SoloShape?,
+        /** The board's offset within the capture space (the frontend's centring). */
+        val originX: Float,
+        val originY: Float,
+        /** The engine's game size along one axis (Solo boards are square). */
+        val boardExtent: Int,
+    )
+
+    /**
+     * One forced redraw of the current board through a
+     * [DescribeRecorder]; returns the capture, or null when no
+     * board is ready. Shared by Describe board and the TalkBack
+     * virtual grid (SoloTalkBackGrid), so both always read the
+     * same board the same way.
+     */
+    fun captureBoardTexts(): BoardCapture? {
+        if (currentBackend == null || progress != null ||
             gameView.wDip <= 0 || gameView.hDip <= 0
         ) {
+            return null
+        }
+        val inset = boardBottomInset()
+        val recorder = DescribeRecorder(gameView)
+        // Pattern's mode bar plans its gestures from the board's
+        // cell states, which ride along with this capture as
+        // recorded fills; no other game pays for recording them.
+        recorder.recordRects = currentBackend == PATTERN
+        gameEngine.setViewCallbacks(recorder)
+        try {
+            gameEngine.resizeEvent(gameView.wDip, gameView.hDip, inset)
+        } finally {
+            gameEngine.setViewCallbacks(gameView)
+        }
+        val gameSize = gameEngine.gameSizeInGameCoords
+        return BoardCapture(
+            texts = recorder.texts,
+            lines = recorder.lines,
+            rects = recorder.rects,
+            soloShape = soloShapeFromParams(gameEngine.currentParams),
+            // android.c centres the game in the view: (view − game)/2.
+            originX = (gameView.wDip - gameSize.x) / 2f,
+            originY = (gameView.hDip - inset - gameSize.y) / 2f,
+            boardExtent = gameSize.x,
+        )
+    }
+
+    /**
+     * Pattern's clue texts + validated geometry for GameView's
+     * pinned-clue redraw (v0.6.0). Same recorder capture as Describe
+     * board; PatternClueGeometry.compute cross-checks the derived
+     * margins against the engine's reported extent, so any mismatch
+     * returns null here and the view simply doesn't pin.
+     */
+    fun capturePatternClues(): PatternClues? {
+        if (currentBackend != PATTERN) return null
+        val cap = captureBoardTexts() ?: return null
+        val gameSize = gameEngine.gameSizeInGameCoords
+        val params = gameEngine.currentParams?.substringBefore(':') ?: return null
+        val m = Regex("""^(\d+)x(\d+)$""").find(params) ?: return null
+        val w = m.groupValues[1].toIntOrNull() ?: return null
+        val h = m.groupValues[2].toIntOrNull() ?: return null
+        val geom = PatternClueGeometry.compute(
+            w, h, gameEngine.engineTilesize, gameSize.x, gameSize.y,
+        ) ?: return null
+        return PatternClues.fromCapture(cap.texts, geom, cap.originX, cap.originY, cap.rects)
+    }
+
+    /**
+     * Solo's board shape from its params (solo.c's encode_params):
+     * "3x3" → 9 with 3×3 blocks, "2x3" → 6 with 2-wide 3-tall
+     * blocks, jigsaw "9j" → 9 with no blocks.
+     */
+    private fun soloShapeFromParams(params: String?): SoloShape? {
+        val p = params?.substringBefore(':') ?: return null
+        val m = Regex("""^(\d+)(?:x(\d+)|j)""").find(p) ?: return null
+        val c = m.groupValues[1].toIntOrNull() ?: return null
+        val r = m.groupValues[2].toIntOrNull()
+        val cr = c * (r ?: 1)
+        if (cr !in 2..16) return null
+        return SoloShape(cr, if (r != null) c else null, r)
+    }
+
+    private fun describeBoard() {
+        val backend = currentBackend
+        val capture = captureBoardTexts()
+        if (backend == null || capture == null) {
             // No silent failure: a TalkBack user who asked for the
             // board must hear that it isn't ready, not nothing.
             Toast.makeText(this, R.string.describe_not_ready, Toast.LENGTH_SHORT).show()
             return
-        }
-        val recorder = DescribeRecorder(gameView)
-        gameEngine.setViewCallbacks(recorder)
-        try {
-            gameEngine.resizeEvent(gameView.wDip, gameView.hDip, boardBottomInset())
-        } finally {
-            gameEngine.setViewCallbacks(gameView)
         }
         val context = when {
             inDailyMode() -> getString(R.string.daily) + ", " +
@@ -667,7 +761,7 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         }
         val status = statusBar.text?.toString()?.trim()?.ifEmpty { null }
         val body = DescribeFormatter.format(
-            context, status, recorder.texts,
+            context, status, capture.texts,
             notesArePencil = backend == SOLO,
         )
         val pad = (16 * resources.displayMetrics.density).toInt()
@@ -681,6 +775,132 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
             .setView(ScrollView(this).apply { addView(textView) })
             .setPositiveButton(android.R.string.ok, null)
             .show()
+    }
+
+    // --- TalkBack Solo grid input (Phase 2, builds 2/2.1, 2026-11-06) ---
+    //
+    // The grid (SoloTalkBackGrid on GameView) owns navigation and
+    // selection; input reuses the app's EXISTING control bar — its
+    // keys are real Compose buttons with TalkBack labels (digits,
+    // Backspace, Mark), so there is no separate pad to draw
+    // (Fernando's call in build 2.1: the custom pad overlapped the
+    // board and fought the grid; the bar was already accessible).
+    // Selecting a cell jumps accessibility focus down to the bar.
+    // Pencil entry is the engine's own gesture — activate the
+    // selected cell again — as it is for sighted players.
+    //
+    // Selection state is a MIRROR of the engine's highlight,
+    // maintained from the inputs this build itself sends — the
+    // engine offers no way to read its highlight back. The mirror
+    // follows solo.c's ANDROID tap rules: tapping a given clears
+    // the highlight, tapping the selected cell again toggles
+    // pencil mode, moving to another cell keeps the mode. (The
+    // bar's "Mark" key is NOT the pencil toggle: in solo.c 'M'
+    // fills every empty cell with all pencil marks.)
+
+    private var tbSelectedCell: Int? = null
+    private var tbPencilMode = false
+
+    /** GameView reports the Solo TalkBack grid going active or inactive. */
+    fun onTalkBackGridActiveChanged(active: Boolean) {
+        if (!active) {
+            tbSelectedCell = null
+            tbPencilMode = false
+        }
+    }
+
+    /** True while digit/backspace keys from the control bar should be announced. */
+    private fun talkBackStripAnnounces(code: Int): Boolean =
+        currentBackend == SOLO && ::gameView.isInitialized &&
+            gameView.isTalkBackGridActive() && tbSelectedCell != null &&
+            (code in '0'.code..'9'.code || code in 'a'.code..'z'.code ||
+                code in 'A'.code..'Z'.code || code == '\b'.code)
+
+    /** The board model before a control-bar key, for the result announcement. */
+    private fun talkBackStripKeyBefore(code: Int, isRepeat: Boolean): SoloGridModel? =
+        if (!isRepeat && talkBackStripAnnounces(code)) {
+            gameView.currentTalkBackModel()
+        } else {
+            null
+        }
+
+    /** After a control-bar key, speak the selected cell's fresh state. */
+    private fun talkBackStripKeyAfter(code: Int, before: SoloGridModel?) {
+        if (before == null) return
+        val id = tbSelectedCell ?: return
+        announceTalkBackResult(id, before)
+    }
+
+    // FOCUS JUMP — PARKED (Fernando's call, 2026-11-08).
+    // Selecting a cell was meant to move TalkBack focus to the
+    // control bar's "1" key (his build 2.1 idea). Three attempts
+    // never landed on his device (2.1: ButtonsView provider
+    // children; 2.2: posted provider-tree search; 2.3/2.4:
+    // window-tree search with a spoken diagnostic) and 2.3
+    // crashed the app in the attempt; the verified parts of the
+    // tranche (grid, bar keys, announcements) don't need it.
+    // His ruling: he would still prefer the jump eventually, but
+    // it is out for now — an app yanking focus may disorient
+    // explore-by-touch users anyway — and the manual move
+    // (select a cell, then move down to the control bar) is to
+    // be documented in Solo's Help text instead (v0.6.0 Better
+    // Help tranche). Revisit post-1.0 or on tester demand; the
+    // full attempt history lives in the Solo grid design doc.
+
+    /** GameView calls this after a grid cell is activated (the engine tap already sent). */
+    fun talkBackCellSelected(virtualId: Int, modelBefore: SoloGridModel) {
+        val row = virtualId / modelBefore.cr
+        val col = virtualId % modelBefore.cr
+        val cell = modelBefore.cellAt(row, col)
+        if (cell.given) {
+            // Tapping a given clears the engine's highlight.
+            tbSelectedCell = null
+            tbPencilMode = false
+            announceForTalkBack(modelBefore.label(this, row, col))
+            return
+        }
+        if (tbSelectedCell == virtualId) {
+            tbPencilMode = !tbPencilMode // the engine toggles pencil on a re-tap
+        } else {
+            tbSelectedCell = virtualId
+        }
+        announceForTalkBack(
+            getString(R.string.tb_selected_cell, row + 1, col + 1) +
+                if (tbPencilMode) getString(R.string.tb_selected_pencil_suffix) else ""
+        )
+    }
+
+    /**
+     * After a control-bar key, speak the selected cell's fresh state, plus
+     * any row/column/box this move just completed (filled and
+     * conflict-free, newly complete versus [before]).
+     */
+    private fun announceTalkBackResult(id: Int, before: SoloGridModel?) {
+        val after = gameView.currentTalkBackModel() ?: return
+        if (id !in 0 until after.cr * after.cr) return
+        val row = id / after.cr
+        val col = id % after.cr
+        val sb = StringBuilder(after.label(this, row, col))
+        if (before != null) {
+            for (unit in after.newlyCompletedUnits(before, row, col)) {
+                sb.append(' ')
+                sb.append(
+                    when (unit) {
+                        is SoloGridModel.Unit.Row ->
+                            getString(R.string.tb_ann_row_complete, unit.index + 1)
+                        is SoloGridModel.Unit.Column ->
+                            getString(R.string.tb_ann_col_complete, unit.index + 1)
+                        is SoloGridModel.Unit.Box ->
+                            getString(R.string.tb_ann_box_complete, unit.index + 1)
+                    }
+                )
+            }
+        }
+        announceForTalkBack(sb.toString())
+    }
+
+    private fun announceForTalkBack(message: String) {
+        window.decorView.announceForAccessibility(message)
     }
 
     fun suggestDensity(w: Int, h: Int): Float {
@@ -732,6 +952,16 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         applySolveTimerVisibility()
         updateSolveTimerDisplay()
         gameView = _binding.gameView
+        patternModeBar = _binding.patternModeBar
+        patternModeBar.onModeSelected = { mode ->
+            gameView.setPatternMode(mode)
+            // The bar's buttons carry the mode names as content
+            // descriptions; the announcement is what a TalkBack
+            // user hears on switching, since focus stays put.
+            patternModeBar.announceForAccessibility(
+                getString(PatternModeBar.descriptionRes(mode))
+            )
+        }
         ViewCompat.setOnApplyWindowInsetsListener(gameView) { v, windowInsets ->
             gameViewResized()
             WindowInsetsCompat.CONSUMED
@@ -743,7 +973,12 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
                     if (!swapLROn && currentBackend === PALISADE && "HJKL".indexOf(ch) > -1) ch.lowercaseChar()
                     else ch
                 runOnUiThread {
+                    // TalkBack grid: capture the board before a
+                    // control-bar digit/backspace so the result can
+                    // be announced against it (build 2.1).
+                    val tbBefore = talkBackStripKeyBefore(maybeLowercase.code, isRepeat)
                     sendKey(0, 0, maybeLowercase.code, isRepeat)
+                    talkBackStripKeyAfter(maybeLowercase.code, tbBefore)
                 }
             }
             onSwapLRListener.value = { swap: Boolean ->
@@ -1134,6 +1369,17 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         val showResultItem = gameMenu.menu.findItem(R.id.show_result)
         showResultItem.isEnabled = reshowCompletion != null
         showResultItem.isVisible = reshowCompletion != null
+        // Bookmark (the v0.6.0 checkpoint): a mid-solve tool, so both
+        // items are offered only while this run is unfinished — a
+        // bookmark of or into a solved board is meaningless, and
+        // gating on the run being unfinished is also what keeps a
+        // post-completion restore from re-entering the recording
+        // path. "Go to bookmark" stays disabled until one is set
+        // for this run.
+        val bookmarkRunLive = !everCompleted && currentBackend != null
+        gameMenu.menu.findItem(R.id.set_bookmark).isEnabled = bookmarkRunLive
+        gameMenu.menu.findItem(R.id.go_to_bookmark).isEnabled =
+            bookmarkRunLive && bookmarkKey()?.let { Bookmark.has(it) } == true
         gameMenu.setOnMenuItemClickListener { item: MenuItem ->
             when (item.itemId) {
                 R.id.new_game -> if (inDailyMode()) leaveDailyToPractice() else startNewGame()
@@ -1144,6 +1390,8 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
                     gameEngine.restartEvent()
                 }
                 R.id.solve -> solveMenuItemClicked()
+                R.id.set_bookmark -> setBookmark()
+                R.id.go_to_bookmark -> goToBookmark()
                 R.id.load -> loadGame()
                 R.id.save -> try {
                     saveLauncher.launch(suggestFilenameForShare())
@@ -1176,6 +1424,41 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         startGame(
             GameLaunch.toGenerate(backend, params, GameLaunch.Origin.CUSTOM_DIALOG)
         )
+    }
+
+    /**
+     * Identity of the run currently on screen, for bookmark keying:
+     * the game's save slot (which already separates playlist boards
+     * from general-play boards of the same puzzle) plus the daily
+     * date when this is a daily attempt, so a bookmark can only ever
+     * be served back to the run that set it.
+     */
+    private fun bookmarkKey(): String? {
+        val backend = currentBackend ?: return null
+        return slotKey(backend) + "|" + (dailyModeDate ?: "")
+    }
+
+    /** "Set bookmark": snapshot the current board as this run's checkpoint. */
+    private fun setBookmark() {
+        val key = bookmarkKey() ?: return
+        Bookmark.set(key, saveToString())
+        Toast.makeText(this, R.string.bookmark_set, Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * "Go to bookmark": reload the checkpoint through the same
+     * serialised-state path the save system uses (GameLaunch with a
+     * saved state, loaded by GameEngineImpl.fromLaunch), with the
+     * BOOKMARK_RESTORE origin so the run's timer and record flags
+     * carry on untouched. One-way: no return point is created for
+     * the state being left, and the bookmark itself is kept, so
+     * going to it again is harmless.
+     */
+    private fun goToBookmark() {
+        val key = bookmarkKey() ?: return
+        val saved = Bookmark.savedFor(key) ?: return
+        startGame(fromBookmark(saved))
+        Toast.makeText(this, R.string.bookmark_restored, Toast.LENGTH_SHORT).show()
     }
 
     private fun solveMenuItemClicked() {
@@ -1383,8 +1666,12 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         // daily (New game, a preset switch, a custom seed, a restore)
         // becomes ordinary play. Without this, "New game" inside the daily
         // would silently stay flagged as the daily — and solving that
-        // random puzzle would wrongly record a daily completion.
-        if (dailyModeDate != null) {
+        // random puzzle would wrongly record a daily completion. The one
+        // exception is a bookmark restore: it reloads a state from this
+        // same run, so the run stays the daily attempt it already was.
+        if (dailyModeDate != null
+            && launch.origin != GameLaunch.Origin.BOOKMARK_RESTORE
+        ) {
             val dailySeed =
                 "${dailyModeParams ?: getDefaultParams(launch.whichBackend)}#$dailyModeDate"
             if (launch.seed != dailySeed) {
@@ -1486,6 +1773,20 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
             return
         }
         currentBackend = startingBackend
+        // Bookmark lifecycle: a bookmark belongs to the one run that
+        // set it. Any launch that starts a different run — new game,
+        // preset or custom switch, game switch, undo/redo across a
+        // new-game boundary, a fresh entry from the chooser — drops
+        // it, so it can never be restored into another board. The two
+        // launches that continue this same run keep it: a bookmark
+        // restore itself (going to the checkpoint twice is harmless),
+        // and a same-session recreate resume (rotation/theme flips
+        // must not lose it — the state lives outside the Activity).
+        if (launch.origin != GameLaunch.Origin.BOOKMARK_RESTORE
+            && launch.origin != GameLaunch.Origin.RESTORING_LAST_STATE_APP_START
+        ) {
+            Bookmark.clear()
+        }
         refreshColours()
         gameView.resetZoomForClear()
         gameView.clear()
@@ -1493,7 +1794,16 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         gameView.keysHandled = 0
         everCompleted = false
         reshowCompletion = null
-        if (launch.saved != null && !launch.generated) {
+        if (launch.origin == GameLaunch.Origin.BOOKMARK_RESTORE) {
+            // Bookmark restore: this is the SAME run continuing, not a
+            // reload — the ROADMAP's build-time checks for the feature.
+            // The solve timer is NOT reset or re-based (no
+            // resetSolveTimer / restoreSolveTimer call), and the
+            // record-disqualifying flags (usedRestart, usedShowSolution)
+            // are left exactly as they stand: restoring neither trips
+            // the restart flag nor launders a restarted or
+            // solution-shown run back into a recordable one.
+        } else if (launch.saved != null && !launch.generated) {
             // Reloading a saved game: pick up the timer where it left off.
             restoreSolveTimer()
         } else {
@@ -1507,6 +1817,17 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         val currentParams = orientGameType(currentBackend, gameEngine.currentParams!!)
         refreshPresets(currentParams)
         gameView.setDragModeFor(currentBackend)
+        // The Pattern mode bar exists for Pattern only. It sits
+        // in the layout chain above the timer/status/buttons
+        // stack, so showing it shrinks GameView itself and the
+        // board can never slide under it (the same accounting
+        // that keeps the board off the existing bars — which is
+        // why boardBottomInset needs no addition for it).
+        // setDragModeFor has just reset the mode to Fill; sync
+        // the bar's selection from the view's state.
+        patternModeBar.visibility =
+            if (currentBackend == PATTERN) View.VISIBLE else View.GONE
+        patternModeBar.selectMode(gameView.patternMode)
         title = currentBackend!!.displayName
         // Daily indicator: the toolbar reads "Loopy · Daily" in daily mode
         // and plain "Loopy" in ordinary play, so the mode is always visible.
@@ -1691,6 +2012,7 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         }
         maybeStartSolveTimer()
         gameEngine.keyEvent(x, y, maybeSwapMouse(k))
+        gameView.onBoardMayHaveChanged()
         if (GameView.CURSOR_KEYS.contains(k)
             || (currentBackend === INERTIA && k == '\n'.code)
             || (currentBackend === UNTANGLE && k == ' '.code)) {
@@ -1710,6 +2032,14 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
             PREVENT_BACK_AFTER_KEY_PRESS_MILLIS.toLong()
         )
     }
+
+    /**
+     * Whether left/right mouse buttons are currently swapped on
+     * their way to the engine. GameView's Pattern mode planner
+     * reads this live so it can pre-invert its planned buttons
+     * and land the intended one after [maybeSwapMouse] runs.
+     */
+    fun isSwapLROn(): Boolean = swapLROn
 
     private fun maybeSwapMouse(k: Int): Int {
         if (swapLROn && k >= GameView.FIRST_MOUSE && k <= GameView.LAST_MOUSE) {

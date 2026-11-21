@@ -80,6 +80,7 @@ class GameEngineImpl @UsedByJNI private constructor(
     override val cursorLocation: RectF external get
     @get:VisibleForTesting
     override val gameSizeInGameCoords: Point external get
+    override val engineTilesize: Int external get
     @VisibleForTesting
     external override fun freezePartialRedo()
     external override fun setViewCallbacks(viewCallbacks: ViewCallbacks)

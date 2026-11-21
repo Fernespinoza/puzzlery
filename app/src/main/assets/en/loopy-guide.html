@@ -1,0 +1,32 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=US-ASCII">
+<title>Loopy strategy guide</title>
+<link rel="up" href="loopy.html">
+<style type="text/css">body { word-wrap: break-word; } body.night { color: #dddddd; background: #000000; } body.night a:link { color: #8888ff; } body.night a:visited { color: #cc88ff; }</style></head>
+<body>
+<p><a href="loopy.html">Back to Loopy</a> | <a href="index.html">Contents</a></p>
+<h1>Strategy guide</h1>
+<h2>First moves</h2>
+<p>
+Start at the corners and edges, where the numbers have fewer ways to work. In a corner, a 3 always takes both edges along the border, and a 1 never takes either of them. A 0 anywhere kills all four edges around its cell &#8212; mark those crosses first. A 3 sitting next to a 0 is fully solved: the edge they share is empty, and its other three edges are all lines.
+</p>
+<h2>Key patterns</h2>
+<p>
+Think at the corners of cells, not in the cells. Every point where grid lines meet ends with zero lines or exactly two. So if two lines meet at a point, the other edges there are empty; if one line arrives and two edges there are crossed out, the last edge is forced. Follow those forced turns and the loop draws itself in stretches. A 3 diagonally next to a 0 takes the two edges at the corner it shares with the 0. On big boards, shade regions inside or outside the loop as lines separate them; an empty edge merges two regions into the same side, and contradictions in the shading expose mistakes early.
+</p>
+<h2>Common traps</h2>
+<p>
+Closing a loop that is not the whole loop. The answer is a single circuit, so any small ring completed early is wrong, however tidy it looks &#8212; leave one edge open until the end. Drawing a third line into a point is the other classic dead end; check the far end of every segment before you place it. Do not skip the 0s because they look like nothing; they are the only free information on the board. These are square-grid patterns; on the triangular and hexagonal boards the corner counts change, but the points rule &#8212; zero or two &#8212; does not.
+</p>
+<h2>Sources</h2>
+<ul>
+<li>The 0 (all four edges crossed), the corner rules (a corner 1 uses neither border edge; a corner 3 uses both), the 3 next to a 0 (shared edge empty, the 3's other three edges are lines), and the points rule (every vertex ends with 0 or exactly 2 lines): "Slitherlink Rules: How to Play the Loop Puzzle", <a href="https://www.thepuzzlelabs.com/slitherlink/rules">https://www.thepuzzlelabs.com/slitherlink/rules</a> &#8212; and "Slitherlink &#8212; ToolsFlare", <a href="https://toolsflare.com/slitherlink?p=ka1eney">https://toolsflare.com/slitherlink?p=ka1eney</a></li>
+<li>Inside/outside region shading is bookkeeping on the same fact those sources state as rule one: all lines form a single closed loop, so an empty edge merges two areas onto the same side of it. Premature small loops are excluded by the same single-loop rule.</li>
+<li>Correction applied 2026-11-14 on Fernando's approval: the Key patterns sentence originally said a 3 diagonally next to a 0 "takes the two edges at its far corner" &#8212; wrong. The standard result is the opposite corner: both sides of the 3 that meet the 0's corner (the corner the two cells share) are lines &#8212; "If a 3 is adjacent to a 0 diagonally, both sides of the 3 that meet the 0's corner must be filled": Slitherlink solving guide (Wikibooks "Puzzles/Stripe", mirrored at <a href="https://En-Academic.com/dic.nsf/enwiki/1241663">https://En-Academic.com/dic.nsf/enwiki/1241663</a>). Short proof: at the shared corner, the 0's two edges are crossed, so the 3's two edges there are both-or-neither under the points rule &#8212; and a 3 cannot afford both empty. The sentence now reads "at the corner it shares with the 0".</li>
+</ul>
+
+<hr><address></address></body>
+</html>

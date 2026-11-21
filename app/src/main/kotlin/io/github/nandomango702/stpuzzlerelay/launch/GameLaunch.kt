@@ -29,11 +29,13 @@ class GameLaunch private constructor(
         BUTTON_OR_MENU_IN_ACTIVITY(false, false),
         CUSTOM_DIALOG(false, false),
         UNDO_OR_REDO(false, true),
+        BOOKMARK_RESTORE(false, true),
         CONTENT_URI(true, false),  // probably via Load button & Storage Access Framework
         INTENT_COMPLEX_URI(true, false),  // probably tests
         INTENT_EXTRA(true, false);  // probably tests
 
-        fun shouldHighlightCompletionOnLaunch() = isOfLocalState && this != UNDO_OR_REDO
+        fun shouldHighlightCompletionOnLaunch() =
+            isOfLocalState && this != UNDO_OR_REDO && this != BOOKMARK_RESTORE
 
         fun shouldResetBackendStateOnFail() =
             this in setOf(
@@ -67,6 +69,18 @@ class GameLaunch private constructor(
         @JvmStatic
         fun undoingOrRedoingNewGame(saved: String) = GameLaunch(
             Origin.UNDO_OR_REDO, GameEngineImpl.identifyBackend(saved), saved = saved
+        )
+
+        /**
+         * Restoring a bookmark (checkpoint): reloads a serialised state
+         * the player reached earlier in THIS run. GamePlay treats this
+         * origin specially — the run continues, so the solve timer and
+         * the record-disqualifying flags must be left untouched (see
+         * the build-time checks in the ROADMAP's Bookmarks bullet).
+         */
+        @JvmStatic
+        fun fromBookmark(saved: String) = GameLaunch(
+            Origin.BOOKMARK_RESTORE, GameEngineImpl.identifyBackend(saved), saved = saved
         )
 
         @JvmStatic

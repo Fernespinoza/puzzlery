@@ -13,6 +13,9 @@
     <color name="key_background_checked">#ff90a4ae</color>
     <color name="status_bar_text">#ff000000</color>
     <color name="chooser_section_background">#ffe2e8f0</color>
+    <!-- Pattern mode bar: the selected mode's highlight (day: the
+         same pale sky tint as the chooser's current-game wash). -->
+    <color name="pattern_mode_selected">#330284C7</color>
     <color name="stats_touched_background">#ffd1d5db</color>
     <!-- Light (day) theme base colours; night keeps AppCompat defaults. -->
     <color name="day_base_background">#fff1f3f5</color>

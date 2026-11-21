@@ -40,8 +40,8 @@ android {
         applicationId = "io.github.nandomango702.stpuzzlerelay"
         minSdk = 21
         targetSdk = 36
-        versionCode = 152
-        versionName = "0.5.0"
+        versionCode = 153
+        versionName = "0.6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resValue("string", "issues_url", issuesURL())
@@ -145,6 +145,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect:2.2.0")
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("androidx.gridlayout:gridlayout:1.1.0")
+    implementation("androidx.customview:customview:1.1.0")
     implementation("androidx.annotation:annotation:1.9.1")
     implementation("androidx.preference:preference-ktx:1.2.1")
     implementation("androidx.webkit:webkit:1.14.0")

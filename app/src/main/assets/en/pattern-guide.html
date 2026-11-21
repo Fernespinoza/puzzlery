@@ -1,0 +1,32 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=US-ASCII">
+<title>Pattern strategy guide</title>
+<link rel="up" href="pattern.html">
+<style type="text/css">body { word-wrap: break-word; } body.night { color: #dddddd; background: #000000; } body.night a:link { color: #8888ff; } body.night a:visited { color: #cc88ff; }</style></head>
+<body>
+<p><a href="pattern.html">Back to Pattern</a> | <a href="index.html">Contents</a></p>
+<h1>Strategy guide</h1>
+<h2>First moves</h2>
+<p>
+Start with the biggest clues. A run longer than half the line has to overlap itself: count that many cells in from the left, count the same number in from the right, and fill in where the two counts overlap. Lines whose clues, plus the single spaces forced between runs, nearly fill the whole width have very little slack &#8212; work those next. Fill what is certain, then change direction: the columns you just touched have new numbers to overlap as well.
+</p>
+<h2>Key patterns</h2>
+<p>
+Mark definite empties as you go; an empty cell is worth as much as a filled one because it cuts the space every nearby run can occupy. A gap shorter than the next clue it would have to hold is all empty. A completed run gets an empty cell capped on each end, which fixes where the neighbouring run can start. If the first cell of a line is filled, it begins the first run: count the full length in from the edge and cap the far end. Where two filled cells sit too far apart to belong to the same run, the space they cannot share splits the line into separate problems.
+</p>
+<h2>Common traps</h2>
+<p>
+Leaving out the mandatory space: exactly one empty cell, at least, sits between runs, and every length calculation has to include those spaces. Filling a cell because "a run must reach it" when two different runs both could is a guess wearing a costume. The dullest trap is solving rows only &#8212; alternate directions after every deduction, because each filled cell changes a column's arithmetic. And ignore the picture forming. The clues do not know what it is supposed to look like.
+</p>
+<h2>Sources</h2>
+<ul>
+<li>The overlap method, stated exactly as the guide uses it &#8212; slide a run fully left and fully right; the cells covered both times are certain; guaranteed cells = 2 &#215; run &#8722; line length, so a run longer than half the line always gives some; biggest clues first: "The Overlap Technique in Nonograms Explained", <a href="https://www.thepuzzlelabs.com/nonogram/overlap-technique">https://www.thepuzzlelabs.com/nonogram/overlap-technique</a></li>
+<li>The mandatory spacing the length arithmetic depends on &#8212; runs in a line are separated by at least one empty cell, and a clue's minimum width is the sum of its runs plus one gap between each pair: "Nonogram &#8212; AnyWordSolver", <a href="https://anywordsolver.com/nonogram-game.html">https://anywordsolver.com/nonogram-game.html</a></li>
+<li>Edge and segment reasoning &#8212; a filled cell near an edge pins the run that contains it; a completed run is capped at both ends; gaps and crosses split a line into shorter segments that long runs cannot fit: "Nonogram &#8212; Solving techniques", <a href="https://www.adfreebybigt.com/help/nonogram">https://www.adfreebybigt.com/help/nonogram</a></li>
+</ul>
+
+<hr><address></address></body>
+</html>
