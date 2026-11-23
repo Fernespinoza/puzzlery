@@ -64,6 +64,8 @@ object UpdateChecker {
      * a newer one appears.
      */
     fun maybeAutoCheck(activity: Activity) {
+        // Tester builds make no network calls at all.
+        if (BuildConfig.TESTER_BUILD) return
         val prefs = PreferenceManager.getDefaultSharedPreferences(activity)
         if (!prefs.getBoolean(PrefsConstants.CHECK_FOR_UPDATES_KEY, true)) return
         val now = System.currentTimeMillis()
@@ -74,6 +76,8 @@ object UpdateChecker {
 
     /** The manual check from Settings: ignores toggle and throttle, always reports. */
     fun checkNow(activity: Activity) {
+        // Tester builds make no network calls at all.
+        if (BuildConfig.TESTER_BUILD) return
         runCheck(activity, manual = true)
     }
 

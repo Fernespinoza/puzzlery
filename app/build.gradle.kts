@@ -47,6 +47,27 @@ android {
         resValue("string", "issues_url", issuesURL())
     }
 
+    // Editions. "standard" is the shipping app, unchanged. "solotester"
+    // is the single-puzzle TalkBack validation build: its own package id
+    // (installs beside the main app), the update check compiled out via
+    // BuildConfig.TESTER_BUILD, and a brief screen instead of the
+    // chooser. All tester-only code and resources live in
+    // src/solotester/, so the standard variant ships none of them.
+    flavorDimensions += "edition"
+    productFlavors {
+        create("standard") {
+            dimension = "edition"
+            buildConfigField("boolean", "TESTER_BUILD", "false")
+        }
+        create("solotester") {
+            dimension = "edition"
+            applicationId = "io.github.nandomango702.stpuzzlerelay.solotester"
+            versionCode = 1
+            versionName = "0.6.0-tester1"
+            buildConfigField("boolean", "TESTER_BUILD", "true")
+        }
+    }
+
     externalNativeBuild {
         ndkVersion = "29.0.14206865"
         cmake {

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Overrides the main app_name for this variant only. -->
+    <string name="app_name">Puzzlery Solo Tester</string>
+    <!-- The one place the tester page URL lives: swap this for a
+         feedback-form link later without hunting through code. -->
+    <string name="tester_feedback_url">https://forms.gle/ZF6JXrdcx4BCUTcq7</string>
+    <string name="tester_brief_title">Solo TalkBack tester</string>
+    <string name="tester_brief_intro">This is a testing build of Puzzlery. It contains only Solo, the Sudoku game, and it installs beside the regular app — your regular games are not affected.</string>
+    <string name="tester_brief_play">Play Solo</string>
+    <string name="tester_brief_try_heading">What to try</string>
+    <string name="tester_brief_try">Swipe to move between cells. Double-tap a cell to select it, and double-tap again for pencil marks. To enter a number: select a cell, then move down to the bottom control bar yourself and use its keys. When you finish a game, listen for the completion announcement. In Killer games, each cell\'s description gives its cage\'s total and the cells that make up the cage.</string>
+    <string name="tester_brief_collects">This build collects nothing — no accounts, no analytics, no network.</string>
+    <string name="tester_brief_feedback">Feedback: open the tester page and answer the short question list.</string>
+    <string name="tester_brief_open_page">Open the tester page</string>
+</resources>

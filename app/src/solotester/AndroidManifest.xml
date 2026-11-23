@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- The tester build makes no network calls at all: drop the
+         INTERNET permission the main app holds for its update check. -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <application>
+        <activity android:name=".SoloTesterBriefActivity" android:exported="false"
+            android:theme="@style/NoActionBar"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode" />
+    </application>
+</manifest>

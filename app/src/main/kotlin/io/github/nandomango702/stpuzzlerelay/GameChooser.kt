@@ -86,6 +86,15 @@ class GameChooser : ActivityWithLoadButton(), OnSharedPreferenceChangeListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (BuildConfig.TESTER_BUILD) {
+            // Solo tester build: there is no chooser — every route
+            // "home" (Back from a game, the MAIN intent filter) lands
+            // on the brief screen instead. This also keeps the
+            // automatic update check below unreachable in that build.
+            startActivity(Intent().setClassName(this, TESTER_BRIEF_ACTIVITY))
+            finish()
+            return
+        }
         if (executableIsMissing(this)) {
             finish()
             return
