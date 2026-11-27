@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Accessibility custom-action ids for the TalkBack grids'
+         per-cell actions (Pattern: fill / mark / clear; Mines:
+         uncover / flag / chord). Resource ids are the
+         collision-free way to name custom actions. -->
+    <item name="tb_action_fill_cell" type="id" />
+    <item name="tb_action_mark_cell" type="id" />
+    <item name="tb_action_clear_cell" type="id" />
+    <item name="tb_action_uncover_cell" type="id" />
+    <item name="tb_action_flag_cell" type="id" />
+    <item name="tb_action_chord_cell" type="id" />
+</resources>

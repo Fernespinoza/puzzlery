@@ -68,6 +68,7 @@ import io.github.nandomango702.stpuzzlerelay.GameView.LimitDPIMode.LIMIT_AUTO
 import io.github.nandomango702.stpuzzlerelay.GameView.LimitDPIMode.LIMIT_OFF
 import io.github.nandomango702.stpuzzlerelay.GameView.LimitDPIMode.LIMIT_ON
 import io.github.nandomango702.stpuzzlerelay.backend.BackendName
+import io.github.nandomango702.stpuzzlerelay.backend.MINES
 import io.github.nandomango702.stpuzzlerelay.backend.PATTERN
 import io.github.nandomango702.stpuzzlerelay.backend.SOLO
 import io.github.nandomango702.stpuzzlerelay.backend.GameEngine.ViewCallbacks
@@ -890,37 +891,70 @@ class GameView(context: Context, attrs: AttributeSet?) : View(context, attrs), V
         stripGesture = StripGesture.NONE
     }
 
-    // --- TalkBack virtual grid (Phase 2; Solo first) ---
+    // --- TalkBack virtual grids (Phase 2; Solo in v0.6.0, Pattern and Mines in v0.7.0) ---
 
     private var talkBackGrid: SoloTalkBackGrid? = null
+    private var patternTalkBackGrid: PatternTalkBackGrid? = null
+    private var minesTalkBackGrid: MinesTalkBackGrid? = null
 
     /**
-     * Installs the Solo TalkBack grid while touch exploration is on
-     * and Solo is the running game; removes it otherwise. Called at
-     * game start (setDragModeFor) and whenever touch exploration is
-     * toggled mid-session (listener registered in init).
+     * Installs the running game's TalkBack grid while touch
+     * exploration is on — Solo's, Pattern's, or Mines', by
+     * backend — and removes it otherwise. Called at game start
+     * (setDragModeFor) and whenever touch exploration is
+     * toggled mid-session (listener registered in init). Only
+     * one grid is ever installed at a time: the view has a
+     * single accessibility delegate, and a game switch passes
+     * through here with the new backend, so the old game's
+     * grid is removed in the same call that installs the new
+     * one's.
      */
     fun refreshTalkBackGrid() {
         if (isInEditMode) return
-        val want = touchExplorationEnabled() &&
-            ::parent.isInitialized && parent.currentBackend == SOLO
-        if (want && talkBackGrid == null) {
+        val backend = if (::parent.isInitialized) parent.currentBackend else null
+        val wantSolo = touchExplorationEnabled() && backend == SOLO
+        val wantPattern = touchExplorationEnabled() && backend == PATTERN
+        val wantMines = touchExplorationEnabled() && backend == MINES
+        if (wantSolo && talkBackGrid == null) {
             val helper = SoloTalkBackGrid(this)
             talkBackGrid = helper
             ViewCompat.setAccessibilityDelegate(this, helper)
-        } else if (!want && talkBackGrid != null) {
+        } else if (!wantSolo && talkBackGrid != null) {
             ViewCompat.setAccessibilityDelegate(this, null)
             talkBackGrid = null
         }
+        if (wantPattern && patternTalkBackGrid == null) {
+            val helper = PatternTalkBackGrid(this)
+            patternTalkBackGrid = helper
+            ViewCompat.setAccessibilityDelegate(this, helper)
+        } else if (!wantPattern && patternTalkBackGrid != null) {
+            ViewCompat.setAccessibilityDelegate(this, null)
+            patternTalkBackGrid = null
+        }
+        if (wantMines && minesTalkBackGrid == null) {
+            val helper = MinesTalkBackGrid(this)
+            minesTalkBackGrid = helper
+            ViewCompat.setAccessibilityDelegate(this, helper)
+        } else if (!wantMines && minesTalkBackGrid != null) {
+            ViewCompat.setAccessibilityDelegate(this, null)
+            minesTalkBackGrid = null
+        }
         talkBackGrid?.markDirty()
+        patternTalkBackGrid?.markDirty()
+        minesTalkBackGrid?.markDirty()
         if (::parent.isInitialized) {
-            parent.onTalkBackGridActiveChanged(talkBackGrid != null)
+            parent.onTalkBackGridActiveChanged(
+                talkBackGrid != null || patternTalkBackGrid != null ||
+                    minesTalkBackGrid != null
+            )
         }
     }
 
     /** GamePlay calls this after the engine processes any input. */
     fun onBoardMayHaveChanged() {
         talkBackGrid?.markDirty()
+        patternTalkBackGrid?.markDirty()
+        minesTalkBackGrid?.markDirty()
         refreshPatternClues()
     }
 
@@ -929,6 +963,13 @@ class GameView(context: Context, attrs: AttributeSet?) : View(context, attrs), V
 
     /** True while the Solo TalkBack grid is installed on this view. */
     internal fun isTalkBackGridActive(): Boolean = talkBackGrid != null
+
+    /** The Pattern grid's current model, or null when that grid is inactive. */
+    internal fun currentPatternTalkBackModel(): PatternGridModel? =
+        patternTalkBackGrid?.currentModel()
+
+    /** True while the Pattern TalkBack grid is installed on this view. */
+    internal fun isPatternTalkBackGridActive(): Boolean = patternTalkBackGrid != null
 
     /**
      * A TalkBack user activated a grid cell: select it through the
@@ -963,6 +1004,101 @@ class GameView(context: Context, attrs: AttributeSet?) : View(context, attrs), V
         )
     }
 
+    /** One fresh capture of the current board, modelled for Pattern; null when unavailable. */
+    internal fun capturePatternGridModel(): PatternGridModel? {
+        if (isInEditMode || !::parent.isInitialized) return null
+        val clues = parent.capturePatternClues() ?: return null
+        return PatternGridModel.fromClues(clues)
+    }
+
+    /**
+     * A TalkBack user activated a Pattern grid cell, or fired one
+     * of its custom actions ([target] null for a plain activation).
+     * A plain activation applies the mode bar's current mode
+     * exactly as a touch tap would — planned from the cell's
+     * captured state through the same [PatternModePlanner] the
+     * touch path uses (see patternTapHandled): a paint mode sets
+     * its target state, and a cell already holding that state is
+     * a genuine no-op — nothing is sent, as with a set-state tap.
+     * In Pan mode a plain activation cycles the cell one forward
+     * step, the Pan tap's own behaviour; Pan itself is otherwise
+     * a no-op under TalkBack, because the grid is the navigation
+     * and there is nothing to pan. A custom action names its
+     * state outright and applies in any mode, Pan included. The
+     * press and its release go together: one activation is one
+     * tap, one engine move. GamePlay then announces the cell's
+     * fresh state (or its unchanged state, for a no-op).
+     */
+    internal fun onPatternTalkBackActivated(virtualId: Int, target: PatternCellState?) {
+        val helper = patternTalkBackGrid ?: return
+        val model = helper.currentModel() ?: return
+        if (virtualId !in 0 until model.w * model.h) return
+        val row = virtualId / model.w
+        val col = virtualId % model.w
+        val state = model.stateAt(row, col)
+        val button = when {
+            target != null -> PatternModePlanner.tapButton(state, target)
+            patternMode == PatternMode.PAN -> PatternModePlanner.panCycleButton()
+            else -> PatternModePlanner.tapButton(state, patternMode.target)
+        }
+        if (button != null) {
+            val point = PointF(model.colCenters[col], model.rowCenters[row])
+            val send = PatternModePlanner.swapForSwapLR(button, parent.isSwapLROn())
+            parent.sendKey(point, send)
+            parent.sendKey(point, send + RELEASE)
+        }
+        parent.patternTalkBackCellChanged(virtualId, model)
+    }
+
+    /** The Mines grid's current model, or null when that grid is inactive. */
+    internal fun currentMinesTalkBackModel(): MinesGridModel? =
+        minesTalkBackGrid?.currentModel()
+
+    /** True while the Mines TalkBack grid is installed on this view. */
+    internal fun isMinesTalkBackGridActive(): Boolean = minesTalkBackGrid != null
+
+    /** One fresh capture of the current board, modelled for Mines; null when unavailable. */
+    internal fun captureMinesGridModel(): MinesGridModel? {
+        if (isInEditMode || !::parent.isInitialized) return null
+        val cap = parent.captureMinesBoard() ?: return null
+        return MinesGridModel.fromCapture(cap)
+    }
+
+    /**
+     * A TalkBack user activated a Mines grid square, or fired
+     * one of its custom actions. The sends are the touch path's
+     * own, at the square's centre: an uncover and a chord are
+     * the same left press + release pair a tap sends (the
+     * engine opens on the release, and clears around an
+     * uncovered number the same way), and a flag is the right
+     * press + release pair the long-press flag sends — the
+     * engine acts on the press; the release is its no-op
+     * counterpart, kept so the sequence is the touch sequence
+     * whole. Nothing is pre-swapped here: GamePlay.sendKey
+     * applies the swap-L/R preference to these sends exactly
+     * as it does to real touches, so the two input paths
+     * cannot diverge. GamePlay then announces the result.
+     */
+    internal fun onMinesTalkBackActivated(virtualId: Int, action: MinesGridAction) {
+        val helper = minesTalkBackGrid ?: return
+        val model = helper.currentModel() ?: return
+        if (virtualId !in 0 until model.w * model.h) return
+        val row = virtualId / model.w
+        val col = virtualId % model.w
+        val point = PointF(model.colCenters[col], model.rowCenters[row])
+        when (action) {
+            MinesGridAction.FLAG -> {
+                parent.sendKey(point, RIGHT_BUTTON)
+                parent.sendKey(point, RIGHT_BUTTON + RELEASE)
+            }
+            MinesGridAction.UNCOVER, MinesGridAction.CHORD -> {
+                parent.sendKey(point, LEFT_BUTTON)
+                parent.sendKey(point, LEFT_BUTTON + RELEASE)
+            }
+        }
+        parent.minesTalkBackCellChanged(virtualId, model, action)
+    }
+
     /**
      * A game-coordinate rect in view coordinates, following the
      * same transform onDraw applies to the board bitmap (the zoom
@@ -981,8 +1117,12 @@ class GameView(context: Context, attrs: AttributeSet?) : View(context, attrs), V
     }
 
     override fun onHoverEvent(event: MotionEvent): Boolean {
-        val helper = talkBackGrid
-        if (helper != null && helper.dispatchHoverEvent(event)) return true
+        val solo = talkBackGrid
+        if (solo != null && solo.dispatchHoverEvent(event)) return true
+        val pattern = patternTalkBackGrid
+        if (pattern != null && pattern.dispatchHoverEvent(event)) return true
+        val mines = minesTalkBackGrid
+        if (mines != null && mines.dispatchHoverEvent(event)) return true
         return super.onHoverEvent(event)
     }
 
@@ -993,10 +1133,19 @@ class GameView(context: Context, attrs: AttributeSet?) : View(context, attrs), V
      * Names the board's TalkBack stop: the puzzle, plus a signpost to
      * Describe board. Without a label TalkBack announces the board as
      * "untitled"/"unlabeled" — Fernando heard that on every puzzle.
+     *
+     * The Describe signpost is dropped for the Phase 2 grid games
+     * (Solo, Pattern, Mines): the board is read through the virtual
+     * grid now, so pointing at Describe board is stale and
+     * misleading there. Describe-only games keep it exactly as is.
      */
     fun updateBoardLabel(whichBackend: BackendName?) {
         boardLabel = whichBackend?.let {
-            "${it.displayName}, board. Describe board is in the Game menu."
+            if (TalkBackSupport.level(it) == TalkBackSupport.Level.FULL_PLAY) {
+                "${it.displayName}, board."
+            } else {
+                "${it.displayName}, board. Describe board is in the Game menu."
+            }
         }
         contentDescription = boardLabel
     }

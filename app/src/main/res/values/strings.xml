@@ -125,6 +125,7 @@ Version %s"</string>
     <string name="Redo">Redo</string>
     <string name="Settings">Settings</string>
     <string name="Show_solution">Show solution</string>
+    <string name="Strategy_guide">Strategy guide</string>
     <string name="show_result">Show result</string>
     <!--  Settings -->
     <string name="gameChooser">Game chooser</string>
@@ -199,6 +200,7 @@ Version %s"</string>
     <string name="tb_level_full_text">Describe board reads the whole board</string>
     <string name="tb_level_clues_only">Describe board reads the clues only</string>
     <string name="tb_level_no_text">Describe board has no board text to read</string>
+    <string name="tb_level_full_play">Full play (untested)</string>
     <string name="stats_tb_support">TalkBack support: %1$s</string>
     <string name="tb_grid_row_col">Row %1$d, column %2$d: %3$s</string>
     <string name="tb_grid_given">given %1$s</string>
@@ -216,6 +218,42 @@ Version %s"</string>
     <string name="tb_ann_row_complete">Row %1$d complete.</string>
     <string name="tb_ann_col_complete">Column %1$d complete.</string>
     <string name="tb_ann_box_complete">Box %1$d complete.</string>
+    <string name="tb_pattern_filled">filled</string>
+    <string name="tb_pattern_marked">marked</string>
+    <string name="tb_pattern_blank">blank</string>
+    <string name="tb_pattern_row_clue">Row clue %1$s</string>
+    <string name="tb_pattern_row_clues">Row clues %1$s</string>
+    <string name="tb_pattern_col_clue">Column clue %1$s</string>
+    <string name="tb_pattern_col_clues">Column clues %1$s</string>
+    <string name="tb_pattern_row_error">Row has an error</string>
+    <string name="tb_pattern_col_error">Column has an error</string>
+    <string name="tb_pattern_action_fill">Fill cell</string>
+    <string name="tb_pattern_action_mark">Mark cell</string>
+    <string name="tb_pattern_action_clear">Clear cell</string>
+    <string name="tb_mines_covered">covered</string>
+    <string name="tb_mines_flagged">flagged</string>
+    <string name="tb_mines_question">covered, question mark</string>
+    <string name="tb_mines_blank">0</string>
+    <string name="tb_mines_mine">mine</string>
+    <string name="tb_mines_wrong_flag">wrong flag</string>
+    <string name="tb_mines_safe_start">Safe start square</string>
+    <string name="tb_mines_hit">This is the mine you hit</string>
+    <string name="tb_mines_too_many_flags">Too many flags around it</string>
+    <string name="tb_mines_game_over">Game over.</string>
+    <string name="tb_mines_marked_count">Marked: %1$d of %2$d</string>
+    <string name="tb_mines_action_uncover">Uncover</string>
+    <string name="tb_mines_action_flag">Flag</string>
+    <string name="tb_mines_action_unflag">Unflag</string>
+    <string name="tb_mines_action_chord">Chord</string>
+    <!-- TalkBack label for the bottom bar's "Swap press and long press"
+         toggle: the label always carries the mode, so a TalkBack
+         player knows what their next press / long press will do.
+         %1$s is the press action, %2$s the long-press action. -->
+    <string name="tb_swap_label">Swap press and long press: press %1$s, long press %2$s</string>
+    <string name="tb_swap_action_uncover">uncovers</string>
+    <string name="tb_swap_action_flag">flags</string>
+    <string name="tb_swap_action_left_click">acts as left click</string>
+    <string name="tb_swap_action_right_click">acts as right click</string>
     <string name="amoledBlack">True black (AMOLED)</string>
     <string name="amoledBlackSummary">In night mode, use pure black backgrounds instead of dark gray. Saves power on OLED screens</string>
     <string name="bestTimeDisplay">Best %1$s</string>
@@ -746,6 +784,16 @@ Version %s"</string>
     <string name="stats_summary_cleared">Presets cleared</string>
     <string name="stats_summary_time">Time spent</string>
     <string name="stats_preset_play">Play %1$s: %2$s</string>
+    <string name="stats_preset_favorite_suffix">, favorite preset</string>
+    <string name="stats_preset_solved_suffix">, solved</string>
+    <string name="stats_bonus_presets_header">Bonus presets</string>
+    <string name="stats_bonus_count">Bonus: %1$d of %2$d solved</string>
+    <string name="presetProgression">Preset progression</string>
+    <string name="presetProgressionSummary">Chooser taps deal the next unsolved preset; a cleared puzzle deals a random preset. Off: taps start the default preset, as before.</string>
+    <string name="star_preset">Star preset</string>
+    <string name="unstar_preset">Unstar preset</string>
+    <string name="preset_now_starred">Starred %1$s</string>
+    <string name="preset_now_unstarred">Unstarred %1$s</string>
     <string name="stats_summary_cleared_value">%1$d/%2$d (%3$d%%)</string>
     <string name="daily_not_solved">Not solved yet</string>
     <string name="daily_solved_in">Solved today in %1$s</string>

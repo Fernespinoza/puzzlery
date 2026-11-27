@@ -57,31 +57,50 @@ the things it chose not to:
   the time, when the timer is shown). More lands every release on the
   road to full support in 1.0.
 
-## Current release — v0.6.0
+## Current release — v0.7.0
 
-**Better Help** — strategy guides, and big upgrades for Solo and Pattern:
+**Preset progression** — favorite presets, a chooser that deals
+your next unsolved board, and TalkBack play for Pattern and Mines:
 
-- Strategy guides for Solo, Pattern, Mines, and Loopy — First moves,
-  Key patterns, Common traps, and the sources they draw on. Each guide
-  is its own page, one tap on the Strategy guide button at the top of
-  that puzzle's Help
-- Solo with TalkBack — the board is a real grid you can swipe through
-  and play, and Killer cage totals and members are part of each cell's
-  description. Solo's Help also gains a "Playing Solo with TalkBack"
-  section. This is new and still labelled untested — TalkBack-first
-  players, your feedback is exactly what it needs
-- Pattern: pinned clues — the row and column clues stay in view while
-  you pan around a big board, with a small map in the corner showing
-  where you're looking
-- Pattern mode bar — Fill, Mark, Erase, and Pan buttons set cells
-  directly instead of cycling. In Pan, a tap cycles a cell one way, a
-  hold cycles it the other way and paints a straight line, and a
-  quick drag pans the board
-- Bookmarks — set a checkpoint in any game and jump back to it; it
-  never affects your times, streaks, or completion
-- A one-time welcome hint explains starred games and the familiar
-  names (Sudoku, Nonograms / Picross, Slitherlink) the first time
-  you open the puzzle list
+- Favorite presets — star a preset from its row in Stats
+  (long-press, or the TalkBack custom action) and it joins your
+  favorites; the star shows read-only in the in-game type menu.
+  Favorites ride along in backup exports
+- Solved check marks — a preset with a legit best time shows a
+  check in the type menu, and Stats shows the time (or
+  "Not completed"). Nested presets live in their own Bonus section
+  in Stats with their own solved count; the completion total stays
+  top-level only
+- The smart chooser — tapping a puzzle now deals its next unsolved
+  preset, in picker order. A board in progress still resumes first,
+  a fully solved puzzle deals a random preset, and playlists and
+  custom games are untouched. A Settings toggle ("Preset
+  progression", on by default) switches the deal off entirely: taps
+  then work as they always have
+- Random "From favorites" — the random picker now prefers your
+  favorite presets, and the unsolved variant chases completion in
+  tiers: unsolved favorites first, then unsolved top-level presets,
+  then unsolved nested ones — until nothing is left unsolved
+- Pattern with TalkBack — the board is a real grid you can swipe
+  through and play, with row and column clues in every cell's
+  description and Fill / Mark / Clear actions that follow the mode
+  bar. Pattern's Help gains a "Playing Pattern with TalkBack"
+  section. Labelled untested — TalkBack-first players, your
+  feedback is exactly what it needs
+- Mines with TalkBack — the board is a real grid too: covered,
+  flagged, and numbered cells, flagging that speaks the count back
+  ("Marked: 1 of 10"), chording on numbers, and a spoken
+  "Game over." when you hit a mine, with the revealed board still
+  readable afterwards. Also labelled untested
+- Solo's TalkBack label now matches: "Full play (untested)", the
+  same as Pattern and Mines
+- The swap press / long-press button in the bottom bar now tells
+  TalkBack which mode it's in — in Mines, "press uncovers, long
+  press flags" (or the reverse after a toggle) — in all 29 games
+  that have the button
+- Strategy guides are now also one tap away in the game menu,
+  directly under "How to play", as well as from the button at the
+  top of Help
 
 See [ROADMAP.md](ROADMAP.md) for what's next.
 

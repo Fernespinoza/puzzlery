@@ -40,8 +40,8 @@ android {
         applicationId = "io.github.nandomango702.stpuzzlerelay"
         minSdk = 21
         targetSdk = 36
-        versionCode = 153
-        versionName = "0.6.0"
+        versionCode = 154
+        versionName = "0.7.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resValue("string", "issues_url", issuesURL())

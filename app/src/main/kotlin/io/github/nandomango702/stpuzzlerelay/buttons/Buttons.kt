@@ -437,16 +437,27 @@ private fun Character(
             onKey, offset, repeatable = true, borders = borders
         )
 
-        SWAP_L_R_KEY.code -> IconKeyButton(
-            c.code, R.drawable.ic_action_swap_l_r, "Swap press and long press",
-            remember { mutableStateOf({ _, _ ->
-                swapLR.value = !swapLR.value
-                onSwapLR.value(swapLR.value)
-            })},
-            offset,
-            on = swapLR,
-            borders = borders
-        )
+        SWAP_L_R_KEY.code -> {
+            // The label carries the mode, so a TalkBack player
+            // knows what their next press / long press will do
+            // (in Mines: uncover vs flag). Reading swapLR here
+            // subscribes this key to the toggle, so the spoken
+            // label updates when the mode flips. (The context is
+            // read here, in composable scope — the resolver
+            // lambda runs inside the plain label() call.)
+            val context = LocalContext.current
+            IconKeyButton(
+                c.code, R.drawable.ic_action_swap_l_r,
+                SwapMode.label(backend.value, swapLR.value) { context.getString(it) },
+                remember { mutableStateOf({ _, _ ->
+                    swapLR.value = !swapLR.value
+                    onSwapLR.value(swapLR.value)
+                })},
+                offset,
+                on = swapLR,
+                borders = borders
+            )
+        }
 
         else -> {
             CharacterButton(backend, c, offset, disableCharacterIcons, borders, onKey)

@@ -88,6 +88,13 @@
 			android:title="@string/showCompletionBadges"
 			app:iconSpaceReserved="false" />
 
+		<SwitchPreferenceCompat
+			android:defaultValue="true"
+			android:key="presetProgression"
+			android:summary="@string/presetProgressionSummary"
+			android:title="@string/presetProgression"
+			app:iconSpaceReserved="false" />
+
 		<ListPreference
 			android:defaultValue="@string/orientationModeDefaultValue"
 			android:entries="@array/orientationModeDescs"

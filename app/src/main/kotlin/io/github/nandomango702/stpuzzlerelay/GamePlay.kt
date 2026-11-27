@@ -103,12 +103,14 @@ import io.github.nandomango702.stpuzzlerelay.buttons.ArrowMode
 import io.github.nandomango702.stpuzzlerelay.buttons.ButtonsView
 import io.github.nandomango702.stpuzzlerelay.buttons.SEEN_SWAP_L_R_TOAST
 import io.github.nandomango702.stpuzzlerelay.buttons.SWAP_L_R_KEY
+import io.github.nandomango702.stpuzzlerelay.buttons.SwapMode
 import io.github.nandomango702.stpuzzlerelay.config.ConfigBuilder
 import io.github.nandomango702.stpuzzlerelay.config.ConfigBuilder.Event.CFG_SETTINGS
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.ARROW_KEYS_KEY_SUFFIX
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.AUTO_ORIENT
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.AUTO_ORIENT_DEFAULT
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.BEST_TIME_PREFIX
+import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.FAVORITE_PRESET_PREFIX
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SOLVE_COUNT_PREFIX
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.TOTAL_TIME_PREFIX
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.BRIDGES_SHOW_H_KEY
@@ -129,6 +131,7 @@ import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.REDO_NEW_GAME
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SAVED_BACKEND
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SAVED_COMPLETED_PREFIX
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SAVED_GAME_PREFIX
+import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.PRESET_PROGRESSION_KEY
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SAVED_TIMER_PREFIX
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SAVED_USED_RESTART_PREFIX
 import io.github.nandomango702.stpuzzlerelay.config.PrefsConstants.SAVED_USED_SOLVE_PREFIX
@@ -160,6 +163,7 @@ import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch.Companion.toGener
 import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch.Companion.toGenerateFromChooser
 import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch.Companion.undoingOrRedoingNewGame
 import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch.Origin.BUTTON_OR_MENU_IN_ACTIVITY
+import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch.Origin.GENERATING_FROM_CHOOSER
 import io.github.nandomango702.stpuzzlerelay.launch.GameLaunch.Origin.INTENT_COMPLEX_URI
 import io.github.nandomango702.stpuzzlerelay.launch.MenuEntry
 import java.io.ByteArrayOutputStream
@@ -169,6 +173,7 @@ import java.io.IOException
 import java.lang.ref.WeakReference
 import java.text.MessageFormat
 import java.util.concurrent.Future
+import kotlin.random.Random
 import java.util.regex.Pattern
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -658,8 +663,10 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         val texts: List<DescribeRecorder.DrawnText>,
         /** Drawn lines (Solo's Killer cage segments); only the grid model reads them. */
         val lines: List<DescribeRecorder.DrawnLine>,
-        /** Filled rects (Pattern's per-cell state fills); recorded for Pattern captures only. */
+        /** Filled rects (Pattern's per-cell state fills, Mines' tile fills); recorded for those captures only. */
         val rects: List<DescribeRecorder.DrawnRect>,
+        /** Polygons (Mines' flags); recorded for Mines captures only. */
+        val polys: List<DescribeRecorder.DrawnPoly>,
         /** Solo's board shape, parsed from the game params; null when unparseable. */
         val soloShape: SoloShape?,
         /** The board's offset within the capture space (the frontend's centring). */
@@ -686,8 +693,11 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         val recorder = DescribeRecorder(gameView)
         // Pattern's mode bar plans its gestures from the board's
         // cell states, which ride along with this capture as
-        // recorded fills; no other game pays for recording them.
-        recorder.recordRects = currentBackend == PATTERN
+        // recorded fills; Mines' TalkBack grid reads its cell
+        // states from the fills too, and its flags from recorded
+        // polygons. No other game pays for recording either.
+        recorder.recordRects = currentBackend == PATTERN || currentBackend == MINES
+        recorder.recordPolys = currentBackend == MINES
         gameEngine.setViewCallbacks(recorder)
         try {
             gameEngine.resizeEvent(gameView.wDip, gameView.hDip, inset)
@@ -699,6 +709,7 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
             texts = recorder.texts,
             lines = recorder.lines,
             rects = recorder.rects,
+            polys = recorder.polys,
             soloShape = soloShapeFromParams(gameEngine.currentParams),
             // android.c centres the game in the view: (view − game)/2.
             originX = (gameView.wDip - gameSize.x) / 2f,
@@ -726,6 +737,32 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
             w, h, gameEngine.engineTilesize, gameSize.x, gameSize.y,
         ) ?: return null
         return PatternClues.fromCapture(cap.texts, geom, cap.originX, cap.originY, cap.rects)
+    }
+
+    /**
+     * Mines' board capture for the TalkBack grid: the shared
+     * forced-redraw capture, plus the board's dimensions and
+     * mine total parsed from its params (mines.c's
+     * encode_params: "30x16n99" — the count rides after 'n' in
+     * the full encoding; without one, decode_params defaults
+     * it to a tenth of the board, mirrored here). The model
+     * validates the geometry itself; this only shapes the data.
+     */
+    fun captureMinesBoard(): MinesCapture? {
+        if (currentBackend != MINES) return null
+        val cap = captureBoardTexts() ?: return null
+        val params = gameEngine.currentParams?.substringBefore(':') ?: return null
+        val m = Regex("""^(\d+)x(\d+)(?:n(\d+))?""").find(params) ?: return null
+        val w = m.groupValues[1].toIntOrNull() ?: return null
+        val h = m.groupValues[2].toIntOrNull() ?: return null
+        val totalMines = m.groupValues[3].toIntOrNull() ?: (w * h / 10)
+        val gameSize = gameEngine.gameSizeInGameCoords
+        return MinesCapture(
+            cap.texts, cap.lines, cap.rects, cap.polys,
+            w, h, totalMines,
+            gameSize.x, gameSize.y, gameEngine.engineTilesize,
+            cap.originX, cap.originY,
+        )
     }
 
     /**
@@ -899,6 +936,73 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         announceForTalkBack(sb.toString())
     }
 
+    /**
+     * GameView calls this after a Pattern grid cell is activated
+     * (the engine tap, if any, already sent). There is no
+     * selection mirror to maintain — a Pattern activation acts on
+     * the cell at once — so this only speaks the result: the
+     * cell's fresh label from a re-capture, or its unchanged
+     * label when the activation was a set-state no-op (the
+     * spoken state is itself the confirmation nothing changed).
+     * The solve announcement is the shared completion path in
+     * completedInternal, as for every game.
+     */
+    fun patternTalkBackCellChanged(virtualId: Int, modelBefore: PatternGridModel) {
+        val after = gameView.currentPatternTalkBackModel() ?: modelBefore
+        if (virtualId !in 0 until after.w * after.h) return
+        announceForTalkBack(
+            after.label(this, virtualId / after.w, virtualId % after.w)
+        )
+    }
+
+    /**
+     * GameView calls this after a Mines grid activation (the
+     * engine input, if any, already sent). Like Pattern, there
+     * is no selection mirror — a Mines activation acts at once —
+     * so this only speaks the result, with two Mines-specific
+     * additions:
+     *
+     * - Death: when the activated square's fresh state is the
+     *   mine the player hit, "Game over." leads the label. The
+     *   app surfaces a loss only as the status bar's "DEAD!"
+     *   and the drawn bang tile — neither reaches a TalkBack
+     *   player at the moment it happens — so the grid speaks
+     *   it, with the label itself giving the why. (A win needs
+     *   nothing extra: the shared completion announcement in
+     *   completedInternal already fires for Mines.)
+     * - After a flag or unflag, the marked count is appended
+     *   ("Marked: 3 of 10"), counted from the fresh capture —
+     *   the same numbers the status bar shows a sighted
+     *   player, spoken at the moment they change.
+     */
+    fun minesTalkBackCellChanged(
+        virtualId: Int,
+        modelBefore: MinesGridModel,
+        action: MinesGridAction,
+    ) {
+        val after = gameView.currentMinesTalkBackModel() ?: modelBefore
+        if (virtualId !in 0 until after.w * after.h) return
+        val row = virtualId / after.w
+        val col = virtualId % after.w
+        val sb = StringBuilder()
+        if (after.stateAt(row, col) == MinesCellState.BANG) {
+            sb.append(getString(R.string.tb_mines_game_over)).append(' ')
+        }
+        sb.append(after.label(this, row, col))
+        if (action == MinesGridAction.FLAG) {
+            if (sb.lastOrNull() != '.') sb.append('.')
+            sb.append(' ')
+                .append(
+                    getString(
+                        R.string.tb_mines_marked_count,
+                        after.flagCount, after.totalMines,
+                    )
+                )
+                .append('.')
+        }
+        announceForTalkBack(sb.toString())
+    }
+
     private fun announceForTalkBack(message: String) {
         window.decorView.announceForAccessibility(message)
     }
@@ -984,6 +1088,16 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
             onSwapLRListener.value = { swap: Boolean ->
                 runOnUiThread {
                     setSwapLR(swap)
+                    // The toggle's label carries the new mode on
+                    // focus, but focus stays on the button when it
+                    // flips, so say the new mode out loud — the
+                    // Pattern mode bar's switch-announcement
+                    // precedent. Harmless when TalkBack is off
+                    // (nothing is listening); the toast below stays
+                    // as the sighted feedback.
+                    buttons.announceForAccessibility(
+                        SwapMode.label(currentBackend ?: UNTANGLE, swap) { getString(it) }
+                    )
                     toastFirstFewTimes(
                         this@GamePlay, state, SEEN_SWAP_L_R_TOAST, 4,
                         if (swap) R.string.toast_swap_l_r_on else R.string.toast_swap_l_r_off
@@ -1170,8 +1284,28 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
                 false
             )
             if (savedGame == null || wasCompleted) {
-                Log.d(TAG, "generating as requested")
-                startGame(toGenerateFromChooser(backendFromChooser))
+                // Preset progression (v0.7.0): a plain chooser entry
+                // with no board to resume deals the puzzle's next
+                // unsolved preset instead of the historical default
+                // generation. Playlist entries keep their own flow
+                // and are never dealt; with the toggle off (or
+                // nothing to deal) generation is exactly as before.
+                // Resume precedence is structural: this branch only
+                // runs when there is no in-progress board to resume.
+                val deal = if (entryPlaylist == null) {
+                    progressionDeal(backendFromChooser)
+                } else {
+                    null
+                }
+                if (deal != null) {
+                    Log.d(TAG, "preset progression deal: $deal")
+                    startGame(
+                        toGenerate(backendFromChooser, deal, GENERATING_FROM_CHOOSER)
+                    )
+                } else {
+                    Log.d(TAG, "generating as requested")
+                    startGame(toGenerateFromChooser(backendFromChooser))
+                }
                 return
             }
             Log.d(TAG, "restoring last state of $backendFromChooser")
@@ -1220,6 +1354,36 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
             startGame(ofLocalState(savedBackend, savedGame, false))
         }
         return true
+    }
+
+    /**
+     * The preset progression deal for a chooser entry on [backend]
+     * (see [PresetProgression]): the next unsolved top-level preset
+     * in picker order, or a random preset when every one is solved.
+     * Null when the "Preset progression" setting is off, the puzzle
+     * has no top-level presets, or the preset bridge fails — the
+     * caller then generates exactly as it always has. Solved = a
+     * legit best time is recorded, the standard Stats, the chooser
+     * badges and the unsolved random pools all use. Top-level only,
+     * scanned in the bridge's own order: the same set and order the
+     * daily rotation and the completion math walk.
+     */
+    private fun progressionDeal(backend: BackendName): String? {
+        val progressionOn = PreferenceManager.getDefaultSharedPreferences(this)
+            .getBoolean(PRESET_PROGRESSION_KEY, true)
+        val topPresets = try {
+            GameEngineImpl.getPresetsForBackend(backend)
+                .filter { it.params != null }
+                .map { it.params!! }
+        } catch (e: Exception) {
+            return null
+        }
+        val solved = topPresets.filterTo(mutableSetOf()) {
+            state.getLong(bestTimeKeyFor(backend, it), -1) >= 0
+        }
+        return PresetProgression.deal(topPresets, solved, progressionOn) { bound ->
+            Random.nextInt(bound)
+        }
     }
 
     private fun warnOfStateLoss(
@@ -1499,11 +1663,27 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
         val typeMenu = PopupMenu(this@GamePlay, findViewById(R.id.type_menu))
         typeMenu.menuInflater.inflate(R.menu.type_menu, typeMenu.menu)
         for (entry in menuEntries) {
+            // Favorite presets (starred in Stats) carry a star here
+            // too, and solved presets (a legit best time is recorded)
+            // carry a check, so the picker shows the same state the
+            // stats screen and bests are keyed on. Display only — a
+            // popup menu item can't take a long-press, so starring
+            // itself lives on the stats screen's preset rows. The
+            // glyphs are also what TalkBack speaks for the state:
+            // "black star" and "check mark" lead the item's title.
+            val favorite = entry.params != null && currentBackend != null &&
+                state.getBoolean(favoriteKeyFor(currentBackend!!, entry.params), false)
+            val solved = entry.params != null && currentBackend != null &&
+                state.getLong(bestTimeKeyFor(currentBackend!!, entry.params), -1) >= 0
             val added = typeMenu.menu.add(
                 R.id.typeGroup,
                 entry.id,
                 Menu.NONE,
-                orientGameType(currentBackend, entry.title)
+                buildString {
+                    if (favorite) append("★ ")
+                    if (solved) append("✓ ")
+                    append(orientGameType(currentBackend, entry.title))
+                }
             )
             if (entry.params != null) {
                 added.setOnMenuItemClickListener(typeClickListener)
@@ -1555,11 +1735,22 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
             menu.findItem(R.id.this_game).title = MessageFormat.format(
                 getString(R.string.how_to_play_game), this@GamePlay.title
             )
+            // Only games whose manual carries a strategy guide get
+            // the second door to it (see hasStrategyGuide).
+            menu.findItem(R.id.strategy_guide).isVisible = hasStrategyGuide()
             setOnMenuItemClickListener { item: MenuItem ->
                 when (item.itemId) {
                     R.id.this_game -> {
                         startActivity(Intent(this@GamePlay, HelpActivity::class.java)
                                 .putExtra(HelpActivity.TOPIC, gameEngine.htmlHelpTopic()))
+                        return@setOnMenuItemClickListener true
+                    }
+                    R.id.strategy_guide -> {
+                        startActivity(Intent(this@GamePlay, HelpActivity::class.java)
+                                .putExtra(
+                                    HelpActivity.TOPIC,
+                                    gameEngine.htmlHelpTopic() + "-guide"
+                                ))
                         return@setOnMenuItemClickListener true
                     }
                     R.id.solve -> {
@@ -1574,6 +1765,28 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
                 }
             }
             show()
+        }
+    }
+
+    /**
+     * Whether this game has a strategy guide, decided exactly the
+     * way the Help screen decides: the manual pages that carry the
+     * "Strategy guide" button link to a "<topic>-guide" asset page,
+     * so the guide exists iff that asset does — no second list of
+     * game names to drift out of sync. The localised folder is
+     * checked first, then English, mirroring HelpActivity's own
+     * fallback when it loads a page.
+     */
+    private fun hasStrategyGuide(): Boolean {
+        val topic = gameEngine.htmlHelpTopic() ?: return false
+        val guide = "$topic-guide.html"
+        // locales[0] needs minSdkVersion 24
+        @Suppress("DEPRECATION") val lang = resources.configuration.locale.language
+        return try {
+            resources.assets.list(lang)?.contains(guide) == true ||
+                resources.assets.list("en")?.contains(guide) == true
+        } catch (_: IOException) {
+            false
         }
     }
 
@@ -2663,6 +2876,17 @@ class GamePlay : ActivityWithLoadButton(), OnSharedPreferenceChangeListener, Gam
          */
         fun bestTimeKeyFor(backend: BackendName, params: String): String =
             BEST_TIME_PREFIX + backend + "_" + normalizeBestKeyParams(params)
+
+        /**
+         * Storage key for a preset's favorite (starred) flag, in the
+         * same state store and with the same backend + normalised
+         * params identity as [bestTimeKeyFor] — so favorites, bests
+         * and the stats screen always agree on which preset a record
+         * belongs to, nested presets included. A preset is a favorite
+         * iff this key holds Boolean true; un-starring removes it.
+         */
+        fun favoriteKeyFor(backend: BackendName, params: String): String =
+            FAVORITE_PRESET_PREFIX + backend + "_" + normalizeBestKeyParams(params)
 
         private fun normalizeBestKeyParams(params: String): String {
             val matcher = DIMENSIONS.matcher(params)

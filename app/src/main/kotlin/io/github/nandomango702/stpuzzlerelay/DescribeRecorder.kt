@@ -73,6 +73,24 @@ class DescribeRecorder(
      */
     var recordRects = false
 
+    data class DrawnPoly(
+        /** Absolute vertex coordinates (x, y pairs; the draw offset already applied). */
+        val points: List<Int>,
+        val lineColour: Int,
+        val fillColour: Int,
+    )
+
+    val polys = mutableListOf<DrawnPoly>()
+
+    /**
+     * Polygons are recorded only when a consumer asks, for the
+     * same volume reason as rects: Mines' TalkBack grid reads
+     * its flags from them (a Mines flag is two polygons and
+     * nothing else — no text, no lines, no distinctive rect),
+     * and GamePlay enables this for Mines captures only.
+     */
+    var recordPolys = false
+
     override fun drawText(x: Int, y: Int, flags: Int, size: Int, colour: Int, text: String) {
         texts += DrawnText(x, y, flags, size, colour, text)
     }
@@ -90,8 +108,10 @@ class DescribeRecorder(
     // The remaining primitives carry neither text nor cage
     // segments, so they are not recorded; only their absence
     // matters (a board with no texts at all gets the formatter's
-    // no-text fallback). fillRect is the one exception: it is
-    // recorded under [recordRects], for Pattern's cell states.
+    // no-text fallback). Two exceptions, both opt-in per capture:
+    // fillRect is recorded under [recordRects], for Pattern's
+    // cell states, and drawPoly under [recordPolys], for Mines'
+    // flags.
 
     override fun fillRect(x: Int, y: Int, w: Int, h: Int, colour: Int) {
         if (recordRects) rects += DrawnRect(x, y, w, h, colour)
@@ -107,7 +127,14 @@ class DescribeRecorder(
     ) {
     }
 
-    override fun drawPoly(thickness: Float, points: IntArray, ox: Int, oy: Int, line: Int, fill: Int) {}
+    override fun drawPoly(thickness: Float, points: IntArray, ox: Int, oy: Int, line: Int, fill: Int) {
+        if (recordPolys) {
+            polys += DrawnPoly(
+                points.indices.map { i -> points[i] + if (i % 2 == 0) ox else oy },
+                line, fill,
+            )
+        }
+    }
 
     override fun clipRect(x: Int, y: Int, w: Int, h: Int) {}
     override fun unClip(left: Int, top: Int, right: Int, bottom: Int) {}

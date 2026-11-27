@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.annotation.StringRes
 import io.github.nandomango702.stpuzzlerelay.backend.BackendName
 import io.github.nandomango702.stpuzzlerelay.backend.LOOPY
+import io.github.nandomango702.stpuzzlerelay.backend.MINES
+import io.github.nandomango702.stpuzzlerelay.backend.PATTERN
 import io.github.nandomango702.stpuzzlerelay.backend.SOLO
 
 /**
@@ -28,20 +30,40 @@ object TalkBackSupport {
 
         /** The board has no text for Describe to read (status line only). */
         NO_TEXT(R.string.tb_level_no_text),
+
+        /**
+         * Fully playable through the Phase 2 TalkBack grid. The
+         * phrase carries "(untested)" until a TalkBack-first
+         * player has validated the tranche (the standing Q5/Q15
+         * rule); the qualifier is part of the phrase so it drops
+         * in one place when validation lands.
+         */
+        FULL_PLAY(R.string.tb_level_full_play),
     }
 
     private val levels: Map<BackendName, Level> = mapOf(
-        // Verified 2026-10-31: Describe read all 9 rows exactly.
-        SOLO to Level.FULL_TEXT,
+        // Phase 2 grid shipped in v0.6.0. The label was held at
+        // FULL_TEXT (its verified Describe level) until Fernando
+        // matched it to Pattern's on 2026-11-24: FULL_PLAY, with
+        // the shared "(untested)" phrase, until a TalkBack-first
+        // player validates the tranche.
+        SOLO to Level.FULL_PLAY,
         // Verified 2026-10-31: clue rows exact; drawn lines are not text.
         LOOPY to Level.CLUES_ONLY,
-        // MINES is deliberately UNTAGGED (external review catch,
-        // 2026-10-31): its fresh board has no text, but once cells
-        // are uncovered the revealed numbers ARE drawn text — and a
-        // hidden cell and a revealed-empty cell both draw nothing,
-        // so both would read "blank" and a blind player could not
-        // tell them apart. No honest level exists yet; the tag
-        // arrives with the Phase 2 Mines grid (v0.7.0).
+        // Phase 2 grid shipped in v0.7.0 (this release): full play
+        // via the virtual grid, labelled untested until a
+        // TalkBack-first player validates it. (Pattern had no
+        // honest Describe level — its Describe output was never
+        // device-verified — so it was untagged until now.)
+        PATTERN to Level.FULL_PLAY,
+        // Phase 2 grid shipped in v0.7.0 (this release): full
+        // play via the virtual grid, labelled untested until a
+        // TalkBack-first player validates it. Deliberately
+        // untagged before (external review catch, 2026-10-31):
+        // a hidden cell and a revealed-empty cell both draw no
+        // text, so no honest Describe level existed; the grid
+        // reads state from the drawn tiles themselves instead.
+        MINES to Level.FULL_PLAY,
     )
 
     fun level(backend: BackendName): Level? = levels[backend]

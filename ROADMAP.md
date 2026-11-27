@@ -156,30 +156,34 @@ in their version slots — only the headline content moved.)_
   puzzle, the pattern the following tranches follow.
 
 
-## Planned for v0.7.0: Preset progression
-- **Favorite presets & preset progression** — long-press a preset
-  in the preset picker to star it (the star shows in the picker
-  and beside that preset in Stats). Random → "From favorites" then
-  prefers them: when the puzzle it picks has favorite presets, it
-  deals one of those instead of any preset (the unsolved favorites
-  variant draws from favorite presets still unsolved; if every
-  favorite is already solved, it falls back to any preset of that
-  puzzle). Solved
-  presets get a check mark in the picker too (solved = a legit
-  best time is recorded, the same standard Stats and the unsolved
-  random pools use). And tapping a puzzle in the chooser deals its
-  next unsolved preset, scanning the preset list in picker order
-  (custom games sit outside progression — they aren't presets) — an
-  in-progress board still resumes first,
-  and a fully solved puzzle deals a random preset. A Settings
+## Shipped in v0.7.0: Preset progression (Nov 27, 2026)
+- **Favorite presets & preset progression** — star a preset from
+  its row in Stats (long-press, or the TalkBack custom action);
+  the star shows read-only in the in-game type menu. Solved
+  presets get a check mark in the type menu (Stats rows show the
+  best time or "Not completed" instead — the check there was
+  visual noise); nested presets live in their own Bonus section
+  in Stats with their own solved count, and the completion total
+  stays top-level only. Tapping a puzzle in the chooser deals its
+  next unsolved top-level preset in picker order — an in-progress
+  board still resumes first, a fully solved puzzle deals a random
+  preset, playlists and custom games are untouched. A Settings
   toggle ("Preset progression", default on) switches the chooser
-  deal off entirely: taps then work as they always have — resume,
-  or a fresh board at the default preset. (Split out of v0.5.0 on
-  2026-10-29 so the backup schema locks against existing state
-  first; this release's favorites are new tracked state, so they join
-  the backup export and its type table when they land.)
-- **TalkBack, Phase 2** — the grid treatment spreads to the next
-  tranche of cell-based puzzles (Pattern, Mines).
+  deal off entirely: taps then work as they always have. Random →
+  "From favorites" prefers favorite presets; the unsolved variant
+  follows a three-tier cascade (unsolved favorites, then unsolved
+  top-level, then unsolved nested) that also tiers the game pick,
+  so a nested preset is never dealt while any starred game still
+  has top-level presets unsolved. Favorites are tracked state, so
+  they join the backup export and its type table.
+- **TalkBack, Phase 2** — the grid treatment spreads to Pattern
+  and Mines (both "Full play (untested)"), and Solo's tag matches
+  them. The swap press / long-press button now announces its mode
+  in TalkBack, in all 29 games that have it.
+- **Themes decision** (Nov 26, 2026) — more themes plus a true
+  custom theme option headline their own release after the v0.8.0
+  home dashboard; the home-screen widget shifts later to make
+  room. A design pass precedes the build.
 
 
 ## Planned for v0.8.0: Home dashboard
@@ -275,6 +279,14 @@ a 1.0.
   asking for a Play listing, or Fernando reopening it.
 
 ## Update log
+- **v0.7.0** (Nov 27, 2026) — Preset progression: favorite
+  presets (starred from Stats rows, in the backup export), solved
+  check marks, the smart chooser deal with its Settings toggle,
+  Random "From favorites" with the three-tier unsolved cascade,
+  TalkBack grids for Pattern and Mines, Solo's tag matched to
+  "Full play (untested)", and the swap press / long-press button
+  announcing its mode in TalkBack in all 29 games that have it.
+  Strategy guides also reachable from the game menu.
 - **v0.5.0** (Nov 6, 2026) — Backup & progress: full backup &
   export with type-checked import, completion badges (chooser
   tiles and the Stats puzzle picker), past-month Stats calendar,

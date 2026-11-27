@@ -286,6 +286,7 @@ object Backup {
             key == PrefsConstants.SHOW_SOLVE_TIMER_KEY ||
                 key == PrefsConstants.SHOW_BEST_TIME_KEY ||
                 key == PrefsConstants.SHOW_COMPLETION_BADGES_KEY ||
+                key == PrefsConstants.PRESET_PROGRESSION_KEY ||
                 key == PrefsConstants.CHECK_FOR_UPDATES_KEY ||
                 key == PrefsConstants.COMPLETED_PROMPT_KEY ||
                 key == PrefsConstants.VICTORY_FLASH_KEY ||
@@ -322,6 +323,12 @@ object Backup {
                 key.startsWith(PrefsConstants.SOLVE_COUNT_PREFIX) ||
                 key.startsWith(PrefsConstants.TOTAL_TIME_PREFIX) ||
                 key.startsWith(PrefsConstants.SAVED_TIMER_PREFIX) -> T_LONG
+            // Favorite presets (v0.7.0): Boolean flags in this store,
+            // keyed exactly like best times. Purely additive key, so
+            // schema_version stays 1 — it bumps only on a type or
+            // format change, and an older app reading a newer backup
+            // simply holds the key unused.
+            key.startsWith(PrefsConstants.FAVORITE_PRESET_PREFIX) -> T_BOOLEAN
             key.startsWith(PrefsConstants.SAVED_GAME_PREFIX) ||
                 key.startsWith(PrefsConstants.LAST_PARAMS_PREFIX) -> T_STRING
             key.startsWith(PrefsConstants.SAVED_COMPLETED_PREFIX) ||

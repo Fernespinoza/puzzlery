@@ -24,7 +24,10 @@ import android.widget.Space
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
+import androidx.core.view.AccessibilityDelegateCompat
 import androidx.core.view.ViewCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsCompat.Type.displayCutout
 import androidx.core.view.WindowInsetsCompat.Type.ime
@@ -284,6 +287,21 @@ class StatsActivity : ActivityWithNightMode() {
      * Presets come from the same bridge as the daily picker; puzzles with
      * no top-level presets get a single Default row. Tapping a row
      * launches that preset as a fresh ordinary game.
+     *
+     * The main section lists the TOP-LEVEL presets, and every figure
+     * in the summary card below (average best, presets cleared) is
+     * computed over them alone — the settled split: completion math
+     * stays top-level forever. Presets nested under submenus (Loopy's
+     * "More..." set) render underneath in their own Bonus section
+     * with its own solved count: they show bests and can be starred
+     * like any other row, but never count toward a completion figure.
+     * Long-pressing a row stars/unstars that preset (favorite presets,
+     * v0.7.0); TalkBack gets the same toggle as a named action on the
+     * row, and a favorited row shows a star and says so. A solved
+     * preset (a legit best exists) says so in the row's description
+     * but shows no solved glyph — the best time on the row, or
+     * "Not completed", already says it visually (Fernando's call,
+     * Round 2 fix). The in-game type menu keeps its ★/✓ prefixes.
      */
     private fun buildPresetList() {
         val list = binding.statsPresetList
@@ -294,10 +312,18 @@ class StatsActivity : ActivityWithNightMode() {
         val solves = state.getLong(SOLVE_COUNT_PREFIX + selectedPuzzle, 0)
         val totalTime = state.getLong(TOTAL_TIME_PREFIX + selectedPuzzle, 0)
         var bestMillis: List<Long> = emptyList()
+        var bonusRows: List<Triple<String, String?, String?>> = emptyList()
         val rows: List<Triple<String, String?, String?>> = try {
-            val presets = GameEngineImpl.getPresetsForBackend(selectedPuzzle)
-                .filter { it.params != null }
-            if (presets.isEmpty()) {
+            val (topLevel, nested) = PresetTree.partition(
+                GameEngineImpl.getPresetsForBackend(selectedPuzzle).toList()
+            )
+            // The Bonus section's rows ride along, but nothing below
+            // counts them: bestMillis and the summary card's figures
+            // are computed from the main (top-level) rows only.
+            bonusRows = nested.map {
+                Triple(it.title, it.params, bestFor(state, it.params!!))
+            }
+            if (topLevel.isEmpty()) {
                 val defaultParams = GameEngineImpl.getDefaultParams(selectedPuzzle)
                 bestMillis = listOfNotNull(defaultParams?.let { bestMillisFor(state, it) })
                 listOf(
@@ -308,8 +334,8 @@ class StatsActivity : ActivityWithNightMode() {
                     )
                 )
             } else {
-                bestMillis = presets.mapNotNull { bestMillisFor(state, it.params!!) }
-                presets.map { Triple(it.title, it.params, bestFor(state, it.params!!)) }
+                bestMillis = topLevel.mapNotNull { bestMillisFor(state, it.params!!) }
+                topLevel.map { Triple(it.title, it.params, bestFor(state, it.params!!)) }
             }
         } catch (e: Exception) {
             list.addView(TextView(this).apply {
@@ -319,6 +345,17 @@ class StatsActivity : ActivityWithNightMode() {
             return
         }
         for ((title, params, best) in rows) list.addView(presetRow(title, params, best))
+        if (bonusRows.isNotEmpty()) {
+            list.addView(
+                bonusHeader(
+                    solved = bonusRows.count { it.third != null },
+                    total = bonusRows.size,
+                )
+            )
+            for ((title, params, best) in bonusRows) {
+                list.addView(presetRow(title, params, best))
+            }
+        }
         // TalkBack support tag: what Describe board can do for this
         // puzzle, once its level has been verified on-device.
         TalkBackSupport.phrase(this, selectedPuzzle)?.let { phrase ->
@@ -445,10 +482,84 @@ class StatsActivity : ActivityWithNightMode() {
         }
     }
 
+    /**
+     * The Bonus section's header: a bold "Bonus presets" title over
+     * its own solved count ("Bonus: X of Y solved"). The title is a
+     * real accessibility heading, so TalkBack's heading navigation
+     * finds the section, and the count is a plain text row right
+     * under it — the same treatment as the TalkBack support line at
+     * the foot of this list.
+     */
+    private fun bonusHeader(solved: Int, total: Int): View {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(16), 0, 0)
+            addView(TextView(this@StatsActivity).apply {
+                text = getString(R.string.stats_bonus_presets_header)
+                textSize = 14f
+                setTypeface(null, Typeface.BOLD)
+                ViewCompat.setAccessibilityHeading(this, true)
+            })
+            addView(TextView(this@StatsActivity).apply {
+                text = getString(R.string.stats_bonus_count, solved, total)
+                textSize = 14f
+                alpha = 0.7f
+            })
+        }
+    }
+
+    /**
+     * Stars or unstars [params] of the selected puzzle. The flag is a
+     * Boolean under [GamePlay.favoriteKeyFor] in the state store —
+     * the same store and the same preset identity as the preset's
+     * best time — and un-starring removes the key, so absence always
+     * means "not a favorite". Rebuilds the list so the star, the
+     * spoken state and the toggle's action label all update at once,
+     * and announces the change for TalkBack users.
+     */
+    private fun toggleFavoritePreset(params: String, title: String) {
+        val state = getSharedPreferences(STATE_PREFS_NAME, MODE_PRIVATE)
+        val key = GamePlay.favoriteKeyFor(selectedPuzzle, params)
+        val nowFavorite = !state.getBoolean(key, false)
+        state.edit {
+            if (nowFavorite) putBoolean(key, true) else remove(key)
+        }
+        buildPresetList()
+        binding.statsPresetList.announceForAccessibility(
+            getString(
+                if (nowFavorite) R.string.preset_now_starred
+                else R.string.preset_now_unstarred,
+                title,
+            )
+        )
+    }
+
     private fun presetRow(title: String, params: String?, best: String?): View {
+        // Favorite state comes from the same state store and keying
+        // as the row's best time, so the star and the best can never
+        // disagree about which preset this row is.
+        val favorite = params != null && getSharedPreferences(
+            STATE_PREFS_NAME, MODE_PRIVATE
+        ).getBoolean(GamePlay.favoriteKeyFor(selectedPuzzle, params), false)
+        // Solved = a legit best time is recorded for this preset —
+        // the same fact the row's best text shows, and the standard
+        // Stats, the badges and the unsolved pools all use.
+        val solved = best != null
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(8), 0, dp(8))
+            if (favorite) {
+                addView(ImageView(this@StatsActivity).apply {
+                    setImageResource(R.drawable.ic_star)
+                    // The row's content description carries the state.
+                    importantForAccessibility =
+                        View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    layoutParams = LinearLayout.LayoutParams(dp(20), dp(20)).apply {
+                        marginEnd = dp(8)
+                    }
+                })
+            }
             addView(TextView(this@StatsActivity).apply {
                 text = title
                 textSize = 16f
@@ -467,6 +578,7 @@ class StatsActivity : ActivityWithNightMode() {
                 if (best == null) alpha = 0.6f
             })
             if (params != null) {
+                val presetParams = params
                 isClickable = true
                 isFocusable = true
                 val tv = TypedValue()
@@ -477,8 +589,58 @@ class StatsActivity : ActivityWithNightMode() {
                     setBackgroundResource(tv.resourceId)
                 }
                 contentDescription =
-                    getString(R.string.stats_preset_play, selectedPuzzle.displayName, title)
-                setOnClickListener { launchPreset(params) }
+                    getString(R.string.stats_preset_play, selectedPuzzle.displayName, title) +
+                        (if (favorite) {
+                            getString(R.string.stats_preset_favorite_suffix)
+                        } else {
+                            ""
+                        }) +
+                        (if (solved) {
+                            getString(R.string.stats_preset_solved_suffix)
+                        } else {
+                            ""
+                        })
+                setOnClickListener { launchPreset(presetParams) }
+                setOnLongClickListener {
+                    toggleFavoritePreset(presetParams, title)
+                    true
+                }
+                // TalkBack: the star toggle as a named action on the
+                // row, so it is reachable and labelled without a
+                // long-press — flipping the same flag the long-press
+                // flips, with the row's description carrying the state.
+                ViewCompat.setAccessibilityDelegate(
+                    this,
+                    object : AccessibilityDelegateCompat() {
+                        override fun onInitializeAccessibilityNodeInfo(
+                            host: View,
+                            info: AccessibilityNodeInfoCompat,
+                        ) {
+                            super.onInitializeAccessibilityNodeInfo(host, info)
+                            info.addAction(
+                                AccessibilityNodeInfoCompat.AccessibilityActionCompat(
+                                    TOGGLE_FAVORITE_ACTION_ID,
+                                    getString(
+                                        if (favorite) R.string.unstar_preset
+                                        else R.string.star_preset
+                                    ),
+                                )
+                            )
+                        }
+
+                        override fun performAccessibilityAction(
+                            host: View,
+                            action: Int,
+                            args: Bundle?,
+                        ): Boolean {
+                            if (action == TOGGLE_FAVORITE_ACTION_ID) {
+                                toggleFavoritePreset(presetParams, title)
+                                return true
+                            }
+                            return super.performAccessibilityAction(host, action, args)
+                        }
+                    },
+                )
                 addView(TextView(this@StatsActivity).apply {
                     text = "›"
                     textSize = 16f
@@ -891,6 +1053,8 @@ class StatsActivity : ActivityWithNightMode() {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     companion object {
+        /** Accessibility action id for the preset rows' star toggle. */
+        private const val TOGGLE_FAVORITE_ACTION_ID = 0x4657 // "FW"
         private val GOLD = Color.parseColor("#FFB300")
         private val GOLD_DAY = Color.parseColor("#D97706")
         private val CHECK_GREEN = Color.parseColor("#4CAF50")

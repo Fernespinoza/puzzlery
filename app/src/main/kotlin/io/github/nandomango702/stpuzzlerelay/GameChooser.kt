@@ -67,6 +67,7 @@ import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.roundToInt
+import kotlin.random.Random
 
 class GameChooser : ActivityWithLoadButton(), OnSharedPreferenceChangeListener {
     private lateinit var binding: ChooserBinding
@@ -658,7 +659,16 @@ class GameChooser : ActivityWithLoadButton(), OnSharedPreferenceChangeListener {
      * puzzle set slots in later.
      */
     private fun launchRandom(pool: Collection<BackendName>) {
-        val backend = pool.random()
+        launchRandomForBackend(pool.random())
+    }
+
+    /**
+     * The per-puzzle half of [launchRandom]: a uniformly random
+     * preset of [backend], or a plain no-params launch when it has
+     * none. Split out so "From favorites" can reuse exactly this
+     * deal for a picked puzzle that has no favorite presets.
+     */
+    private fun launchRandomForBackend(backend: BackendName) {
         val params = presetsFor(backend).randomOrNull()
         if (params != null) {
             launchRandomPreset(backend, params)
@@ -692,6 +702,54 @@ class GameChooser : ActivityWithLoadButton(), OnSharedPreferenceChangeListener {
                     .filter { it.params != null }.map { it.params!! }
                 if (presets.isNotEmpty()) presets
                 else listOfNotNull(GameEngineImpl.getDefaultParams(backend))
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+
+    /**
+     * Every preset of [backend] across its full preset tree — the
+     * enumeration the stats screen uses (PresetTree.flatten), so
+     * nested "Bonus" presets are included: they can be starred, so
+     * the favorite random flows must be able to reach them. Empty
+     * when the preset bridge fails. Cached alongside [presetsFor]:
+     * preset lists never change at runtime.
+     */
+    private val allPresetsCache = mutableMapOf<BackendName, List<String>>()
+
+    private fun allPresetsFor(backend: BackendName): List<String> =
+        allPresetsCache.getOrPut(backend) {
+            try {
+                PresetTree.flatten(
+                    GameEngineImpl.getPresetsForBackend(backend).toList()
+                ).mapNotNull { it.params }
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+
+    /** [backend]'s favorite presets (full tree), by Round 1's preset identity. */
+    private fun favoritePresetsFor(backend: BackendName): Set<String> {
+        val state = getSharedPreferences(STATE_PREFS_NAME, MODE_PRIVATE)
+        return allPresetsFor(backend)
+            .filter { state.getBoolean(GamePlay.favoriteKeyFor(backend, it), false) }
+            .toSet()
+    }
+
+    /**
+     * [backend]'s nested ("Bonus") presets — every preset under a
+     * submenu, in menu order (PresetTree.partition's split): the
+     * unsolved cascade's tier-3 pool. Empty when the preset bridge
+     * fails. Cached alongside [allPresetsFor].
+     */
+    private val nestedPresetsCache = mutableMapOf<BackendName, List<String>>()
+
+    private fun nestedPresetsFor(backend: BackendName): List<String> =
+        nestedPresetsCache.getOrPut(backend) {
+            try {
+                PresetTree.partition(
+                    GameEngineImpl.getPresetsForBackend(backend).toList()
+                ).second.mapNotNull { it.params }
             } catch (e: Exception) {
                 emptyList()
             }
@@ -795,22 +853,69 @@ class GameChooser : ActivityWithLoadButton(), OnSharedPreferenceChangeListener {
         }
     }
 
+    /**
+     * "From favorites": a random starred puzzle, then — when that
+     * puzzle has favorite presets — a random one of those (Round 3:
+     * the favorite-presets preference; choosing this flow is the
+     * opt-in, so no Settings toggle gates it). A picked puzzle with
+     * no favorite presets deals exactly as Random always has.
+     */
     private fun launchRandomFavorite() {
         val starred = BackendName.all.filter { isStarred(it) }
         if (starred.isEmpty()) {
             Toast.makeText(this, R.string.random_no_favorites, Toast.LENGTH_LONG).show()
+            return
+        }
+        val backend = starred.random()
+        val dealt = FavoriteRandom.favoriteDeal(
+            allPresetsFor(backend), favoritePresetsFor(backend),
+        ) { bound -> Random.nextInt(bound) }
+        if (dealt != null) {
+            launchRandomPreset(backend, dealt)
         } else {
-            launchRandom(starred)
+            launchRandomForBackend(backend)
         }
     }
 
+    /**
+     * "From favorites" (unsolved): the cascade (Fernando's
+     * decisions, 2026-11-24). Tier 1 deals an unsolved favorite
+     * preset from a starred puzzle that has one; tier 2, an
+     * unsolved top-level preset (the completion chase) from a
+     * starred puzzle that has one; tier 3, an unsolved nested
+     * preset, only once no starred puzzle has anything higher
+     * left. The "none" toast therefore fires only when no
+     * starred puzzle has any unsolved preset anywhere in its
+     * tree. Pool and deal now read the same enumerations, so
+     * Round 3's defensive fallback (pool said unsolved, tree
+     * read as solved) has nothing left to patch.
+     */
     private fun launchRandomFavoriteUnsolved() {
         val starred = BackendName.all.filter { isStarred(it) }
         if (starred.isEmpty()) {
             Toast.makeText(this, R.string.random_no_favorites, Toast.LENGTH_LONG).show()
-        } else {
-            launchRandomUnsolved(starred, R.string.random_favorites_unsolved_none)
+            return
         }
+        val pools = starred.map { backend ->
+            val favorites = favoritePresetsFor(backend)
+            FavoriteRandom.GamePools(
+                unsolvedFavorites = allPresetsFor(backend)
+                    .filter { it in favorites && !hasBest(backend, it) },
+                unsolvedTopLevel = unsolvedPresets(backend),
+                unsolvedNested = nestedPresetsFor(backend)
+                    .filter { !hasBest(backend, it) },
+            )
+        }
+        val deal = FavoriteRandom.unsolvedCascadeDeal(pools) { bound ->
+            Random.nextInt(bound)
+        }
+        if (deal == null) {
+            Toast.makeText(
+                this, R.string.random_favorites_unsolved_none, Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
+        launchRandomPreset(starred[deal.gameIndex], deal.params)
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {

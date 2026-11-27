@@ -162,7 +162,9 @@ class HelpActivity : ActivityWithNightMode() {
 
     companion object {
         const val TOPIC = "io.github.nandomango702.stpuzzlerelay.TOPIC"
-        private val ALLOWED_TOPICS = Pattern.compile("^[a-z]+$")
+        // A manual topic, or its strategy guide ("<topic>-guide") —
+        // the game menu links straight to the guide page.
+        private val ALLOWED_TOPICS = Pattern.compile("^[a-z]+(-guide)?$")
         const val ASSETS_PATH = "/assets/"
         const val ASSETS_URL = "https://" + WebViewAssetLoader.DEFAULT_DOMAIN + ASSETS_PATH
         private fun helpPath(lang: String, topic: String?): String {

@@ -51,7 +51,11 @@ object PrefsConstants {
     const val SHOW_SOLVE_TIMER_KEY = "showSolveTimer"
     const val SHOW_BEST_TIME_KEY = "showBestTime"
     const val SHOW_COMPLETION_BADGES_KEY = "showCompletionBadges"
+    /** Preset progression (v0.7.0): chooser taps deal the next unsolved preset. */
+    const val PRESET_PROGRESSION_KEY = "presetProgression"
     const val BEST_TIME_PREFIX = "bestTime_"
+    /** Favorite presets (v0.7.0): Boolean true in the state store, keyed exactly like best times. */
+    const val FAVORITE_PRESET_PREFIX = "favoritePreset_"
     const val STARRED_PREFIX = "starred_"
     const val DAILY_COMPLETE_PREFIX = "daily_complete"
     /** Per-puzzle totals for the stats screen: solve count and summed solve time, by backend. */
