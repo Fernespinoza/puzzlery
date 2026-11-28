@@ -6,6 +6,11 @@ This is a fork of [chrisboyle/sgtpuzzles](https://github.com/chrisboyle/sgtpuzzl
 which is [Simon Tatham's Portable Puzzle Collection](https://www.chiark.greenend.org.uk/~sgtatham/puzzles/)
 ported to Android.
 
+> Puzzlery was formerly ST Puzzle Relay. The Android package name
+> (`io.github.nandomango702.stpuzzlerelay`) and the release file name
+> (`st-puzzle-relay.apk`) still carry the old name, and won't change so
+> existing installs keep updating.
+
 ## Screenshots
 
 | Puzzle list | Daily puzzle | Stats calendar |
