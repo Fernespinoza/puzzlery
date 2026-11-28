@@ -70,7 +70,7 @@ Where the app is headed. Nothing here is a promise, just the plan.
   washes out the current game's name; playlist editor shows each
   puzzle's icon next to its name.
 
-## Planned for v0.6.0: Better Help
+## Shipped in v0.6.0: Better Help (Nov 21, 2026)
 _(Build order inside this release, settled in the 2026-11-05
 grilling session: Solo's TalkBack grid first, then the first-run
 hint and the first guide tranche, then pinned clues and the
